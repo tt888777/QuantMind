@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantMind · AI 智能体辅助股票量化分析平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+:root{
+  --bg:#050506; --surface:#0A0A0A; --surface-2:#0F0F11; --surface-3:#141417;
+  --text:#EDEDEF; --muted:#8A8F98; --dim:#56585F;
+  --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+  --indigo:#6366F1; --purple:#A855F7; --green:#22C55E; --red:#EF4444; --amber:#F59E0B; --cyan:#06B6D4;
+  --glow-indigo:rgba(99,102,241,.35); --glow-purple:rgba(168,85,247,.3);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text);
+  letter-spacing:-.01em; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+/* ambient background */
+.ambient{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.ambient::before{content:'';position:absolute;width:600px;height:600px;top:-200px;left:-100px;
+  background:radial-gradient(circle,var(--glow-indigo),transparent 60%);filter:blur(40px);opacity:.5}
+.ambient::after{content:'';position:absolute;width:500px;height:500px;bottom:-150px;right:-80px;
+  background:radial-gradient(circle,var(--glow-purple),transparent 60%);filter:blur(40px);opacity:.4}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* layout */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:248px 1fr;height:100vh}
+/* sidebar */
+.sidebar{
+  background:rgba(8,8,10,.72); backdrop-filter:blur(20px); border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 14px;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--indigo),var(--purple));
+  box-shadow:0 0 20px var(--glow-indigo);font-weight:700;font-size:16px;color:#fff;
+}
+.brand-name{font-weight:600;font-size:15px;letter-spacing:-.02em}
+.brand-sub{font-size:10.5px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase}
+.nav-group{font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;padding:14px 10px 6px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:8px;cursor:pointer;
+  color:var(--muted);font-size:13.5px;font-weight:500;transition:all .15s;position:relative;
+}
+.nav-item svg{width:17px;height:17px;flex-shrink:0;stroke-width:1.7}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.nav-item.active{color:#fff;background:rgba(99,102,241,.12)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--indigo);box-shadow:0 0 8px var(--indigo)}
+.nav-badge{margin-left:auto;font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(34,197,94,.15);color:var(--green)}
+.sidebar-foot{margin-top:auto;padding:12px 8px 4px;border-top:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#444,#666);display:grid;place-items:center;font-size:12px;font-weight:600}
+
+/* main */
+.main{display:flex;flex-direction:column;overflow:hidden}
+.topbar{
+  height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 26px;border-bottom:1px solid var(--border);background:rgba(5,5,6,.6);backdrop-filter:blur(12px);
+}
+.crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.crumb b{color:var(--text);font-weight:600}
+.topbar-r{display:flex;align-items:center;gap:14px}
+.pill{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);padding:5px 10px;border:1px solid var(--border);border-radius:20px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.content{flex:1;overflow-y:auto;padding:26px 30px 60px}
+.view{display:none;animation:fade .35s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* typography & components */
+.page-title{font-size:21px;font-weight:600;letter-spacing:-.025em;margin-bottom:3px}
+.page-desc{font-size:13px;color:var(--muted);margin-bottom:22px}
+.section-title{font-size:14px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.section-title .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;background:rgba(99,102,241,.15);color:var(--indigo);letter-spacing:.02em}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;
+  position:relative;transition:border-color .2s,transform .2s;
+}
+.card:hover{border-color:var(--border-strong)}
+.card-glow::after{content:'';position:absolute;inset:0;border-radius:14px;pointer-events:none;
+  background:radial-gradient(120px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.05),transparent 60%);opacity:0;transition:opacity .25s}
+.card-glow:hover::after{opacity:1}
+.grid{display:grid;gap:16px}
+.row{display:flex;gap:16px}
+
+/* bento */
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.bento .c2{grid-column:span 2}
+.bento .c4{grid-column:span 4}
+@media(max-width:1100px){.bento{grid-template-columns:repeat(2,1fr)}.bento .c2,.bento .c4{grid-column:span 2}}
+
+.stat{display:flex;flex-direction:column;gap:6px}
+.stat-label{font-size:11.5px;color:var(--muted);letter-spacing:.02em}
+.stat-val{font-size:26px;font-weight:600;letter-spacing:-.03em}
+.stat-val .u{font-size:14px;color:var(--muted);font-weight:500;margin-left:3px}
+.delta{font-size:11.5px;display:inline-flex;align-items:center;gap:3px}
+.up{color:var(--green)} .down{color:var(--red)}
+
+/* buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:9px;cursor:pointer;
+  font-size:13px;font-weight:500;border:1px solid var(--border);background:var(--surface-2);color:var(--text);
+  transition:all .15s;font-family:inherit;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--border-strong)}
+.btn-primary{background:linear-gradient(135deg,var(--indigo),#7c6ef5);border:none;color:#fff;box-shadow:0 0 18px var(--glow-indigo)}
+.btn-primary:hover{box-shadow:0 0 26px var(--glow-indigo);transform:translateY(-1px)}
+.btn-ghost{background:transparent}
+.btn-sm{padding:6px 11px;font-size:12px}
+.btn svg{width:15px;height:15px}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;font-weight:500;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--border);font-size:11.5px;letter-spacing:.02em;text-transform:uppercase}
+.tbl td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;max-height:340px}
+.tbl-wrap table{border-radius:12px}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 8px;border-radius:6px}
+.b-green{background:rgba(34,197,94,.13);color:var(--green)} .b-red{background:rgba(239,68,68,.13);color:var(--red)}
+.b-amber{background:rgba(245,158,11,.13);color:var(--amber)} .b-indigo{background:rgba(99,102,241,.14);color:var(--indigo)}
+.b-purple{background:rgba(168,85,247,.14);color:var(--purple)} .b-gray{background:rgba(255,255,255,.06);color:var(--muted)}
+.b-cyan{background:rgba(6,182,212,.13);color:var(--cyan)}
+
+/* form */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.input,.select{
+  width:100%;padding:9px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;
+  color:var(--text);font-size:13px;font-family:inherit;transition:border-color .15s;
+}
+.input:focus,.select:focus{outline:none;border-color:var(--indigo);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238A8F98' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+
+/* checkbox step */
+.step{display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid var(--border);border-radius:11px;cursor:pointer;transition:all .15s;background:var(--surface)}
+.step:hover{border-color:var(--border-strong)}
+.step.on{border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.06)}
+.cbox{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--dim);flex-shrink:0;display:grid;place-items:center;margin-top:1px;transition:all .15s}
+.step.on .cbox{background:var(--indigo);border-color:var(--indigo);box-shadow:0 0 10px var(--glow-indigo)}
+.step.on .cbox::after{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg);margin-top:-2px}
+.step-body{flex:1}
+.step-h{font-size:13.5px;font-weight:600;margin-bottom:3px}
+.step-d{font-size:12px;color:var(--muted);line-height:1.5}
+.step-dep{font-size:11px;color:var(--amber);margin-top:6px;display:flex;align-items:center;gap:5px}
+
+/* upload */
+.drop{
+  border:1.5px dashed var(--border-strong);border-radius:14px;padding:42px;text-align:center;cursor:pointer;
+  transition:all .2s;background:var(--surface);
+}
+.drop:hover{border-color:var(--indigo);background:rgba(99,102,241,.04)}
+.drop-icon{width:48px;height:48px;border-radius:12px;margin:0 auto 14px;display:grid;place-items:center;background:var(--surface-3);border:1px solid var(--border)}
+
+/* mapping table */
+.map-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.map-tbl th{text-align:left;font-weight:500;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.map-tbl td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.conf{display:inline-flex;align-items:center;gap:6px}
+.conf-bar{width:48px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.conf-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--indigo),var(--purple))}
+
+/* sentiment */
+.sent-bar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--surface-3)}
+.sent-bar .g{background:var(--green)} .sent-bar .r{background:var(--red)} .sent-bar .n{background:var(--dim)}
+
+/* logs */
+.log{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;max-height:200px;overflow:auto}
+.log .l{color:var(--dim)} .log .ok{color:var(--green)} .log .w{color:var(--amber)} .log .i{color:var(--cyan)}
+
+/* shimmer */
+.shimmer{position:relative;overflow:hidden}
+.shimmer::after{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.06) 50%,transparent 70%);animation:sh 2.5s infinite}
+@keyframes sh{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+/* misc */
+.divider{height:1px;background:var(--border);margin:18px 0}
+.kvs{display:flex;flex-wrap:wrap;gap:8px}
+.kv{font-size:11.5px;color:var(--muted);padding:5px 10px;border:1px solid var(--border);border-radius:7px}
+.kv b{color:var(--text);font-weight:600}
+.hint{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px;margin-top:8px}
+.progress{height:6px;border-radius:4px;background:var(--surface-3);overflow:hidden}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--indigo),var(--purple));border-radius:4px;transition:width .4s}
+.scroll-y{overflow-y:auto}
+.tag-ai{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(168,85,247,.2));color:#c7b8ff;border:1px solid rgba(99,102,241,.25)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.16)}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">Q</div>
+      <div>
+        <div class="brand-name">QuantMind</div>
+        <div class="brand-sub">AI Quant Platform</div>
+      </div>
+    </div>
+    <div class="nav-group">工作台</div>
+    <div class="nav-item active" data-view="dashboard">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+      概览
+    </div>
+    <div class="nav-group">数据</div>
+    <div class="nav-item" data-view="import">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+      数据导入
+      <span class="nav-badge">多格式</span>
+    </div>
+    <div class="nav-item" data-view="process">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h10M4 18h7"/></svg>
+      数据处理
+    </div>
+    <div class="nav-item" data-view="viz">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 17l6-6 4 4 8-8M3 21h18"/></svg>
+      行情可视化
+    </div>
+    <div class="nav-group">AI 智能体</div>
+    <div class="nav-item" data-view="sentiment">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 19V5m0 0C7 7 11 7 14 5m-10 6c3 2 7 2 10 0M16 9l3 3m0 0l-3 3m3-3h-6"/></svg>
+      舆情决策
+      <span class="nav-badge">AI</span>
+    </div>
+    <div class="nav-item" data-view="backtest">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
+      量化回测
+    </div>
+    <div class="nav-group">编排</div>
+    <div class="nav-item" data-view="pipeline">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path stroke-linecap="round" d="M8 6h6a4 4 0 014 4v0M16 18h-6a4 4 0 01-4-4v0"/></svg>
+      分析流水线
+    </div>
+    <div class="nav-item" data-view="report">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 3h9l5 5v13a0 0 0 01-1 0H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v5h5M9 13h6M9 17h6"/></svg>
+      报告中心
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">研</div>
+      <div>
+        <div style="font-size:12.5px;font-weight:500">量化研究员</div>
+        <div style="font-size:10.5px;color:var(--dim)">researcher@quant</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="crumb">QuantMind / <b id="crumbCurrent">概览</b></div>
+      <div class="topbar-r">
+        <select class="select" id="globalStockSel" style="width:180px;font-size:12px;padding:5px 10px"></select>
+        <span class="pill"><span class="dot"></span>AI 智能体在线</span>
+        <span class="pill mono">2026-09-01 15:02</span>
+      </div>
+    </div>
+    <div class="content" id="content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <section class="view active" id="view-dashboard">
+        <div class="page-title">概览</div>
+        <div class="page-desc">AI 智能体辅助股票量化分析平台 · 数据获取 → 处理 → 舆情 → 回测 → 报告全链路</div>
+
+        <div class="bento">
+          <div class="card card-glow">
+            <div class="stat">
+              <div class="stat-label">已接入数据源</div>
+              <div class="stat-val" id="dashStockCount">—<span class="u">个</span></div>
+              <div class="delta" id="dashStockInfo">加载中...</div>
+            </div>
+          </div>
+          <div class="card card-glow">
+            <div class="stat">
+              <div class="stat-label">今日市场情绪指数</div>
+              <div class="stat-val" id="dashSentIndex">—<span class="u">/100</span></div>
+              <div class="delta" id="dashSentInfo">加载中...</div>
+            </div>
+          </div>
+          <div class="card card-glow">
+            <div class="stat">
+              <div class="stat-label">最佳策略近30日收益</div>
+              <div class="stat-val" id="dashReturn">—<span class="u">%</span></div>
+              <div class="delta" id="dashReturnInfo">加载中...</div>
+            </div>
+          </div>
+          <div class="card card-glow">
+            <div class="stat">
+              <div class="stat-label">数据记录总数</div>
+              <div class="stat-val" id="dashDataCount">—<span class="u">条</span></div>
+              <div class="delta" id="dashDataInfo">加载中...</div>
+            </div>
+          </div>
+
+          <div class="card c2">
+            <div class="section-title">策略收益对比 <span class="tag">近 30 日</span></div>
+            <div id="chartDashPerf" style="height:220px"></div>
+          </div>
+          <div class="card c2">
+            <div class="section-title">舆情情绪时间序列 <span class="tag tag-ai">AI</span></div>
+            <div id="chartDashSent" style="height:220px"></div>
+          </div>
+
+          <div class="card c4">
+            <div class="section-title">最近活动</div>
+            <div class="tbl-wrap" style="border:none;max-height:none">
+              <table class="tbl">
+                <thead><tr><th>时间</th><th>模块</th><th>事件</th><th>状态</th></tr></thead>
+                <tbody id="dashActivityTable">
+                  <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== IMPORT ===== -->
+      <section class="view" id="view-import">
+        <div class="page-title">数据导入</div>
+        <div class="page-desc">支持 CSV / XML / Excel / JSON 多格式自动探测 · AI 智能体辅助非标准列名映射 · 导入即清洗入库（US-012 / US-013）</div>
+
+        <div class="grid" style="grid-template-columns:1.1fr .9fr">
+          <div class="card">
+            <div class="section-title">上传行情文件 <span class="tag">US-012</span></div>
+            <div class="drop" id="dropZone">
+              <div class="drop-icon">
+                <svg width="22" height="22" fill="none" stroke="#8A8F98" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+              </div>
+              <div style="font-size:14px;font-weight:600;margin-bottom:4px">拖拽文件到此处或点击上传</div>
+              <div style="font-size:12px;color:var(--muted)">支持 .csv / .xml / .xlsx / .json · 单文件 ≤ 200MB</div>
+            </div>
+            <input type="file" id="fileInput" accept=".csv,.xml,.xlsx,.json" style="display:none">
+            <div class="field" style="margin-top:12px"><label>股票代码</label>
+              <input class="input" id="importStockCode" value="" placeholder="留空则自动用文件名">
+            </div>
+            <div class="field" style="margin-top:8px"><label>股票名称（可选）</label>
+              <input class="input" id="importStockName" value="" placeholder="留空则自动获取">
+            </div>
+            <div class="row" style="gap:8px">
+              <button class="btn btn-primary btn-sm" id="btnGenData" style="flex:1;justify-content:center">生成模拟数据</button>
+              <button class="btn btn-sm" id="btnImportCsv" style="flex:1;justify-content:center">导入文件</button>
+              <button class="btn btn-sm" id="btnFetchApi" style="flex:1;justify-content:center">AkShare获取</button>
+            </div>
+            <div class="row" style="gap:8px;margin-top:8px">
+              <button class="btn btn-ghost btn-sm" id="btnColMap" style="flex:1;justify-content:center">AI列名映射分析</button>
+              <button class="btn btn-sm" id="btnImportTdx" style="flex:1;justify-content:center">通达信盘后数据</button>
+            </div>
+            <input type="file" id="tdxFileInput" accept=".day" style="display:none">
+            <div id="importStatus" style="font-size:11.5px;color:var(--muted);margin-top:8px"></div>
+            <div class="divider"></div>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">最近导入</div>
+            <div class="tbl-wrap" style="max-height:180px">
+              <table class="tbl">
+                <thead><tr><th>文件名</th><th>格式</th><th>记录数</th><th>时间</th><th>状态</th></tr></thead>
+                <tbody id="importHistoryTable">
+                  <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">暂无导入记录</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">格式自动探测结果 <span class="tag">US-012</span></div>
+            <div class="kvs" style="margin-bottom:14px" id="importDetectInfo">
+              <span class="kv">文件: <b>—</b></span>
+              <span class="kv">探测格式: <b>—</b></span>
+              <span class="kv">编码: <b>—</b></span>
+              <span class="kv">数据行: <b>—</b></span>
+            </div>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">自动清洗报告</div>
+            <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px" id="importCleanReport">
+              <div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="mono">—</div><div style="font-size:11px;color:var(--muted)">有效记录</div></div>
+              <div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="mono">—</div><div style="font-size:11px;color:var(--muted)">缺失填充</div></div>
+              <div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="mono">—</div><div style="font-size:11px;color:var(--muted)">异常修正</div></div>
+            </div>
+            <div class="hint" id="importHint">
+              <svg width="14" height="14" fill="none" stroke="#06B6D4" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v4M12 16h.01"/></svg>
+              上传文件后将自动探测格式并清洗入库。
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="section-title">AI 智能体辅助列名映射 <span class="tag-ai">US-013 · AI</span>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:400">文件: hs300_hist.xlsx · 列名非标准，AI 已推断映射建议</span>
+          </div>
+          <div class="tbl-wrap" style="max-height:none">
+              <table class="map-tbl">
+                <thead><tr><th style="width:24%">原始列名</th><th style="width:6%">样本值</th><th style="width:22%">→ 标准字段</th><th style="width:14%">AI 置信度</th><th>推断依据</th><th style="width:10%">操作</th></tr></thead>
+                <tbody id="colMapTable">
+                  <tr><td class="mono" colspan="6" style="text-align:center;color:var(--muted);padding:20px">点击「AI列名映射分析」按钮上传文件进行推断</td></tr>
+                </tbody>
+              </table>
+          </div>
+          <div class="row" style="margin-top:14px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" id="btnRemap">重新推断</button>
+            <button class="btn btn-primary btn-sm" id="btnConfirmMap">确认映射并入库</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== PROCESS ===== -->
+      <section class="view" id="view-process">
+        <div class="page-title">数据处理</div>
+        <div class="page-desc">Pandas 数据清洗 · 缺失值/异常值处理 · 均线/MACD/布林带/RSI 技术指标计算（US-003 / US-004）</div>
+
+        <div class="grid" style="grid-template-columns:.85fr 1.15fr">
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">清洗策略配置 <span class="tag">US-003</span></div>
+              <div class="field"><label>缺失值处理</label>
+                <select class="select"><option>前向填充（推荐）</option><option>后向填充</option><option>线性插值</option><option>删除整行</option></select>
+              </div>
+              <div class="field"><label>异常值处理</label>
+                <select class="select"><option>按上下限截断</option><option>按 3σ 剔除</option><option>标记不删除</option></select>
+              </div>
+              <div class="field"><label>去重规则</label>
+                <select class="select"><option>按日期去重</option><option>按日期+标的去重</option><option>不去重</option></select>
+              </div>
+              <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center" id="btnClean">执行清洗</button>
+            </div>
+            <div class="card">
+              <div class="section-title">技术指标选择 <span class="tag">US-004</span></div>
+              <div class="field"><label>均线 MA 周期</label>
+                <div class="kvs">
+                  <span class="kv b-indigo">MA5 ✓</span><span class="kv b-indigo">MA10 ✓</span>
+                  <span class="kv b-indigo">MA20 ✓</span><span class="kv">MA60</span>
+                </div>
+              </div>
+              <div class="field"><label>MACD 参数</label>
+                <div class="row" style="gap:8px">
+                  <input class="input" value="12" style="text-align:center"><span style="color:var(--dim)">/</span>
+                  <input class="input" value="26" style="text-align:center"><span style="color:var(--dim)">/</span>
+                  <input class="input" value="9" style="text-align:center">
+                </div>
+              </div>
+              <div class="field"><label>布林带周期 / 标准差倍数</label>
+                <div class="row" style="gap:8px"><input class="input" value="20" style="text-align:center"><span style="color:var(--dim)">/</span><input class="input" value="2" style="text-align:center"></div>
+              </div>
+              <div class="kvs"><span class="kv b-indigo">RSI(14) ✓</span><span class="kv b-indigo">EMA(12) ✓</span><span class="kv">KDJ</span></div>
+              <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;margin-top:12px" id="btnCalcInd">计算指标</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">指标计算结果预览 <span class="tag" id="indicatorTag">— · 近 10 日</span></div>
+            <div class="tbl-wrap" style="max-height:520px">
+              <table class="tbl">
+                <thead><tr><th>日期</th><th>开</th><th>高</th><th>低</th><th>收</th><th>MA5</th><th>MA20</th><th>MACD</th><th>BOLL上</th><th>RSI</th></tr></thead>
+                <tbody id="indicatorTable"></tbody>
+              </table>
+            </div>
+            <div class="hint">
+              <svg width="14" height="14" fill="none" stroke="#22C55E" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 13l4 4L19 7"/></svg>
+              所有指标列已追加至行情表，空值位于序列起始（窗口未满），可安全用于策略信号生成。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VIZ ===== -->
+      <section class="view" id="view-viz">
+        <div class="page-title">行情可视化</div>
+        <div class="page-desc">Matplotlib / Seaborn 风格 · K 线叠加均线与布林带 · 策略收益曲线（US-005）</div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="row" style="gap:10px;align-items:center">
+              <select class="select" id="vizStockSel" style="width:200px"></select>
+              <select class="select" id="vizRangeSel" style="width:130px"><option value="60">近 60 日</option><option value="120">近 120 日</option><option value="9999">近一年</option></select>
+              <div class="kvs"><span class="kv b-indigo">MA5/10/20 ✓</span><span class="kv b-purple">布林带 ✓</span><span class="kv">MACD 副图</span></div>
+            </div>
+            <div class="row" style="gap:8px"><button class="btn btn-sm" id="btnExportPng">导出 PNG</button><button class="btn btn-sm" id="btnExportPdf">导出 PDF</button></div>
+          </div>
+          <div id="chartKline" style="height:420px"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">策略收益曲线 <span class="tag">双均线+情绪过滤 vs 基准</span></div>
+          <div id="chartReturns" style="height:240px"></div>
+        </div>
+      </section>
+
+      <!-- ===== SENTIMENT ===== -->
+      <section class="view" id="view-sentiment">
+        <div class="page-title">AI 智能体舆情决策</div>
+        <div class="page-desc">采集财经新闻/股吧舆情 · AI 情感分析与热点事件识别 · 情绪特征融合进量化策略（US-006 / US-007 / US-008）</div>
+
+        <div class="bento" style="margin-bottom:16px">
+          <div class="card">
+            <div class="section-title">舆情采集任务 <span class="tag">US-006</span></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px">定时调度 · 每日盘前 + 盘中每小时</div>
+            <div class="tbl-wrap" style="max-height:170px;border:none">
+              <table class="tbl">
+                <tbody id="sentSourceTable">
+                  <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:12px">点击下方按钮开始采集</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="hint" id="sentCollectHint">点击下方按钮开始采集舆情</div>
+            <button class="btn btn-primary btn-sm" id="btnSentCollect" style="width:100%;justify-content:center;margin-top:8px">采集舆情</button>
+          </div>
+          <div class="card">
+            <div class="section-title">市场情绪指数 <span class="tag-ai">US-007 · AI</span></div>
+            <div class="stat" style="margin-bottom:10px"><div class="stat-val" id="sentIndexVal">—<span class="u">/100</span></div><div class="delta" id="sentIndexDelta">待分析</div></div>
+            <div class="sent-bar" style="margin-bottom:10px"><div class="g" id="sentBarG" style="width:0%"></div><div class="n" id="sentBarN" style="width:0%"></div><div class="r" id="sentBarR" style="width:0%"></div></div>
+            <div class="row" style="justify-content:space-between;font-size:11px;color:var(--muted)">
+              <span class="up" id="sentPosPct">看涨 —</span><span id="sentNeuPct">中性 —</span><span class="down" id="sentNegPct">看跌 —</span>
+            </div>
+            <div id="chartSentIndex" style="height:120px;margin-top:10px"></div>
+          </div>
+          <div class="card">
+            <div class="section-title">情绪融合策略 <span class="tag">US-008</span></div>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">将情绪指数作为买入过滤条件接入策略</div>
+            <div class="field"><label>买入情绪阈值</label><input class="input" id="sentThreshold" value="55" style="text-align:center"></div>
+            <div class="field"><label>利空事件处理</label>
+              <select class="select"><option>触发临时平仓</option><option>仅预警不平仓</option><option>忽略</option></select>
+            </div>
+            <div class="kvs"><span class="kv b-indigo">情绪 &gt; 55 → 允许买入</span></div>
+            <button class="btn btn-primary btn-sm" id="btnSentFuse" style="width:100%;justify-content:center;margin-top:10px">保存融合策略</button>
+          </div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:1.2fr .8fr">
+          <div class="card">
+            <div class="section-title">AI 情感分析结果 <span class="tag-ai" id="sentAnalyzeTag">US-007 · 待分析</span></div>
+            <div class="tbl-wrap" style="max-height:380px">
+              <table class="tbl">
+                <thead><tr><th>标题 / 摘要</th><th>来源</th><th>情感</th><th>置信度</th><th>事件</th></tr></thead>
+                <tbody id="sentResultTable">
+                  <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">点击「AI情感分析」按钮开始分析</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btnSentAnalyze" style="width:100%;justify-content:center;margin-top:10px">AI情感分析</button>
+          </div>
+          <div class="card">
+            <div class="section-title">热点事件识别 <span class="tag-ai">AI</span></div>
+            <div style="display:flex;flex-direction:column;gap:12px" id="sentEventsList">
+              <div style="padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);text-align:center;color:var(--muted);font-size:12px">点击「AI情感分析」后显示热点事件</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== BACKTEST ===== -->
+      <section class="view" id="view-backtest">
+        <div class="page-title">量化回测</div>
+        <div class="page-desc">简易回测框架 · 双均线/动量策略模板 · 收益率/最大回撤/胜率/夏普绩效评估（US-009 / US-010）</div>
+
+        <div class="grid" style="grid-template-columns:.8fr 1.2fr">
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">策略配置 <span class="tag">US-009</span></div>
+              <div class="field"><label>策略模板</label>
+                <select class="select" id="stratSel"><option>双均线交叉</option><option>动量策略</option><option>布林带突破</option><option>双均线+情绪过滤</option></select>
+              </div>
+              <div class="field"><label>标的</label><input class="input" id="btStockInput" value="" readonly placeholder="从顶部选择"></div>
+              <div class="row" style="gap:8px;margin-bottom:14px">
+                <div class="field" style="flex:1;margin:0"><label>短均线</label><input class="input" value="5" style="text-align:center"></div>
+                <div class="field" style="flex:1;margin:0"><label>长均线</label><input class="input" value="20" style="text-align:center"></div>
+              </div>
+              <div class="row" style="gap:8px;margin-bottom:14px">
+                <div class="field" style="flex:1;margin:0"><label>初始资金</label><input class="input" value="100000" style="text-align:center"></div>
+                <div class="field" style="flex:1;margin:0"><label>仓位(%)</label><input class="input" value="90" style="text-align:center"></div>
+              </div>
+              <div class="row" style="gap:8px;margin-bottom:14px">
+                <div class="field" style="flex:1;margin:0"><label>手续费(%)</label><input class="input" value="0.05" style="text-align:center"></div>
+                <div class="field" style="flex:1;margin:0"><label>滑点(%)</label><input class="input" value="0.02" style="text-align:center"></div>
+              </div>
+              <div class="field"><label>回测区间</label>
+                <div class="row" style="gap:8px"><input class="input" id="btStartDate" value="2025-09-01"><span style="color:var(--dim)">→</span><input class="input" id="btEndDate" value="2026-09-01"></div>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" id="runBacktest">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg>
+                开始回测
+              </button>
+            </div>
+            <div class="card">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px">回测进度</div>
+              <div class="progress" style="margin-bottom:8px"><i id="btProgress" style="width:0%"></i></div>
+              <div id="btStatus" style="font-size:11.5px;color:var(--dim)">就绪</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="bento" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">年化收益</div><div style="font-size:21px;font-weight:600" id="btCardAnnual">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">最大回撤</div><div style="font-size:21px;font-weight:600" id="btCardDrawdown">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">胜率</div><div style="font-size:21px;font-weight:600" id="btCardWinrate">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">夏普比率</div><div style="font-size:21px;font-weight:600" id="btCardSharpe">—</div></div>
+            </div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">资金曲线 <span class="tag">US-010</span></div>
+              <div id="chartEquity" style="height:220px"></div>
+            </div>
+            <div class="card">
+              <div class="section-title">逐笔交易明细</div>
+              <div class="tbl-wrap" style="max-height:200px">
+                <table class="tbl">
+                  <thead><tr><th>#</th><th>日期</th><th>方向</th><th>价格</th><th>数量</th><th>盈亏</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">12</td><td class="mono">2026-08-28</td><td><span class="badge b-red">卖出</span></td><td class="mono">1712.5</td><td class="mono">52</td><td class="up mono">+2,340</td></tr>
+                    <tr><td class="mono">11</td><td class="mono">2026-08-21</td><td><span class="badge b-green">买入</span></td><td class="mono">1668.0</td><td class="mono">52</td><td class="mono">—</td></tr>
+                    <tr><td class="mono">10</td><td class="mono">2026-08-14</td><td><span class="badge b-red">卖出</span></td><td class="mono">1695.2</td><td class="mono">53</td><td class="up mono">+1,580</td></tr>
+                    <tr><td class="mono">9</td><td class="mono">2026-08-07</td><td><span class="badge b-green">买入</span></td><td class="mono">1665.4</td><td class="mono">53</td><td class="mono">—</td></tr>
+                    <tr><td class="mono">8</td><td class="mono">2026-07-25</td><td><span class="badge b-red">卖出</span></td><td class="mono">1688.0</td><td class="mono">53</td><td class="down mono">-620</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== PIPELINE ===== -->
+      <section class="view" id="view-pipeline">
+        <div class="page-title">分析流水线</div>
+        <div class="page-desc">数据导入清洗后，按需勾选分析步骤并配置参数 · 系统按依赖顺序串联执行（US-014）</div>
+
+        <div class="grid" style="grid-template-columns:1fr .8fr">
+          <div class="card">
+            <div class="section-title">可勾选分析步骤 <span class="tag">US-014</span></div>
+            <div style="display:flex;flex-direction:column;gap:10px" id="stepList">
+              <div class="step on" data-step="indicator">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">计算技术指标</div>
+                  <div class="step-d">MA/EMA/MACD/布林带/RSI · 基于清洗后行情批量计算</div>
+                </div>
+              </div>
+              <div class="step on" data-step="viz">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">生成可视化图表</div>
+                  <div class="step-d">K线叠加均线布林带 · 成交量副图 · 收益曲线</div>
+                </div>
+              </div>
+              <div class="step" data-step="sentiment">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">舆情情感分析 <span class="tag-ai">AI</span></div>
+                  <div class="step-d">采集财经新闻/股吧 · AI 情感判别 · 情绪指数生成</div>
+                </div>
+              </div>
+              <div class="step" data-step="backtest">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">策略回测</div>
+                  <div class="step-d">执行双均线/动量策略回测 · 计算绩效指标</div>
+                  <div class="step-dep">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v4M12 17h.01M10.3 3.9L1.6 18a2 2 0 001.7 3h17.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+                    依赖：计算技术指标（勾选后将自动包含）
+                  </div>
+                </div>
+              </div>
+              <div class="step" data-step="report">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">导出分析报告</div>
+                  <div class="step-d">整合绩效/图表/舆情摘要生成 PDF/HTML 报告</div>
+                  <div class="step-dep">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v4M12 17h.01M10.3 3.9L1.6 18a2 2 0 001.7 3h17.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+                    依赖：至少一个分析步骤
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="margin-top:16px;justify-content:space-between;align-items:center">
+              <div class="kvs"><span class="kv">预设：<b>快速预览</b></span><span class="kv">完整回测</span><span class="kv">仅舆情</span></div>
+              <button class="btn btn-primary" id="runPipeline">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg>
+                执行所选步骤
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">执行日志</div>
+            <div class="log" id="pipelineLog">
+              <div class="l">[15:02:00] 流水线就绪，等待执行...</div>
+            </div>
+            <div class="divider"></div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px">执行结果产物</div>
+            <div style="display:flex;flex-direction:column;gap:8px" id="pipelineResults">
+              <div style="padding:10px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;gap:10px;opacity:.5">
+                <span class="badge b-gray">待执行</span><span style="font-size:12.5px">指标表 · 图表 · 报告</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== REPORT ===== -->
+      <section class="view" id="view-report">
+        <div class="page-title">报告中心</div>
+        <div class="page-desc">整合行情/策略/舆情生成结构化分析报告 · 附风险提示与数据时间范围声明（US-011）</div>
+
+        <div class="grid" style="grid-template-columns:1.3fr .7fr">
+          <div class="card">
+            <div class="section-title">报告预览 <span class="tag">US-011</span></div>
+            <div style="border:1px solid var(--border);border-radius;overflow:hidden">
+              <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--surface-2)">
+                <div style="font-size:16px;font-weight:600" id="reportTitle">综合量化分析报告</div>
+                <div style="font-size:11.5px;color:var(--muted);margin-top:4px" id="reportSubtitle">点击「导出 HTML」生成报告</div>
+              </div>
+              <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">① 行情概览</div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportOverview">点击「导出 HTML」生成真实报告</div></div>
+                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">② 策略逻辑</div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportStrategy">双均线(5/20)交叉信号 + 情绪指数过滤买入（低于45拒绝买入），含手续费/滑点。</div></div>
+                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">③ 回测绩效</div>
+                  <div class="kvs" id="reportPerf"><span class="kv">年化 <b>—</b></span><span class="kv">回撤 <b>—</b></span><span class="kv">胜率 <b>—</b></span><span class="kv">夏普 <b>—</b></span></div>
+                </div>
+                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">④ 舆情摘要 <span class="tag-ai">AI</span></div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportSentiment">点击「导出 HTML」生成真实报告</div></div>
+                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--amber)">⑤ 风险提示</div><div style="font-size:12px;color:var(--muted);line-height:1.8" id="reportRisk">本报告基于历史数据回测，历史表现不代表未来收益；舆情研判由 AI 生成，仅供参考。</div></div>
+              </div>
+            </div>
+            <div class="row" style="margin-top:14px;gap:8px">
+              <button class="btn btn-primary btn-sm" id="btnReportPdf">导出 PDF</button>
+              <button class="btn btn-sm" id="btnReportHtml">导出 HTML</button>
+              <button class="btn btn-ghost btn-sm">编辑模板</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">历史报告</div>
+            <div class="tbl-wrap" style="max-height:420px;border:none">
+              <table class="tbl">
+                <thead><tr><th>报告</th><th>格式</th><th>操作</th></tr></thead>
+                <tbody id="reportHistoryTable">
+                  <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ============ NAV ============ */
+const navItems=document.querySelectorAll('.nav-item');
+const views=document.querySelectorAll('.view');
+const crumb=document.getElementById('crumbCurrent');
+const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',pipeline:'分析流水线',report:'报告中心'};
+navItems.forEach(it=>it.addEventListener('click',()=>{
+  navItems.forEach(i=>i.classList.remove('active'));
+  it.classList.add('active');
+  const v=it.dataset.view;
+  views.forEach(s=>s.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  crumb.textContent=titles[v];
+  setTimeout(initChartsFor,50,v);
+}));
+
+/* card glow follow */
+document.querySelectorAll('.card-glow').forEach(c=>{
+  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();c.style.setProperty('--mx',(e.clientX-r.left)+'px');c.style.setProperty('--my',(e.clientY-r.top)+'px')});
+});
+
+
+/* ============ CHARTS ============ */
+let charts={};
+function ensure(id){const el=document.getElementById(id);if(!el)return null;if(charts[id])return charts[id];return charts[id]=echarts.init(el)}
+
+function chartDashPerf(){
+  const c=ensure('chartDashPerf');if(!c)return;
+  c.showLoading({text:'加载中...',color:'#6366F1',textColor:'#8A8F98'});
+  callAPI('/backtest',{stock_code:currentStock,short_ma:btParams.short_ma,long_ma:btParams.long_ma,init_capital:btParams.init_capital,start_date:btParams.start_date,end_date:btParams.end_date}).then(r=>{
+    c.hideLoading();
+    if(!r.ok||!r.equity_curve||!r.equity_curve.length){
+      c.setOption({graphic:{type:'text',left:'center',top:'middle',style:{text:'暂无回测数据',fill:'#8A8F98'}}});return;
+    }
+    const init=r.init_capital||100000;
+    const strat=r.equity_curve.map(v=>+(((v.equity||v)-init)/init*100).toFixed(2));
+    const cats=r.equity_curve.map((_,i)=>i+1);
+    c.setOption({backgroundColor:'transparent',
+      tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+      legend:{data:['策略收益'],textStyle:{color:'#8A8F98'},top:0,right:0},
+      grid:{left:0,right:0,top:30,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:cats,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F'}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F',formatter:'{value}%'}},
+      series:[{name:'策略收益',type:'line',smooth:true,data:strat,lineStyle:{color:'#6366F1',width:2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,.25)'},{offset:1,color:'rgba(99,102,241,0)'}])},symbol:'none'}]});
+  }).catch(()=>{c.hideLoading()});
+}
+function chartDashSent(){
+  const c=ensure('chartDashSent');if(!c)return;
+  c.showLoading({text:'加载中...',color:'#6366F1',textColor:'#8A8F98'});
+  callAPI('/sentiment_analyze',{stock_code:currentStock}).then(r=>{
+    c.hideLoading();
+    if(!r.ok||!r.results){
+      c.setOption({graphic:{type:'text',left:'center',top:'middle',style:{text:'暂无舆情数据',fill:'#8A8F98'}}});return;
+    }
+    const d=r.results.map(item=>item.confidence*100);
+    const cats=r.results.map(item=>item.title.slice(0,8));
+    c.setOption({backgroundColor:'transparent',
+      tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+      grid:{left:0,right:0,top:10,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:cats,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F',rotate:30}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F'}},
+      series:[{type:'bar',data:d.map((v,i)=>({value:v,itemStyle:{color:d[i]>=50?'#22C55E':'#EF4444'}}))}]});
+  }).catch(()=>{c.hideLoading()});
+}
+
+function chartReturns(){
+  const c=ensure('chartReturns');if(!c)return;
+  c.showLoading({text:'加载中...',color:'#6366F1',textColor:'#8A8F98'});
+  callAPI('/backtest',{stock_code:currentStock,short_ma:btParams.short_ma,long_ma:btParams.long_ma,init_capital:btParams.init_capital,start_date:btParams.start_date,end_date:btParams.end_date}).then(r=>{
+    c.hideLoading();
+    if(!r.ok||!r.equity_curve||!r.equity_curve.length){
+      c.setOption({graphic:{type:'text',left:'center',top:'middle',style:{text:'暂无回测数据',fill:'#8A8F98'}}});
+      return;
+    }
+    const init=r.init_capital||100000;
+    const strat=r.equity_curve.map(v=>+(((v-init)/init)*100).toFixed(2));
+    const base=strat.map(()=>0);
+    c.setOption({backgroundColor:'transparent',
+      tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+      legend:{data:['策略','基准'],textStyle:{color:'#8A8F98'},top:0,right:0},
+      grid:{left:0,right:0,top:30,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:strat.map((_,i)=>i+1),axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F'}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F',formatter:'{value}%'}},
+      series:[
+        {name:'策略',type:'line',smooth:true,data:strat,lineStyle:{color:'#6366F1',width:2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,.2)'},{offset:1,color:'rgba(99,102,241,0)'}])},symbol:'none'},
+        {name:'基准',type:'line',smooth:true,data:base,lineStyle:{color:'#56585F',width:1.5,type:'dashed'},symbol:'none'}
+      ]});
+  }).catch(()=>{c.hideLoading()});
+}
+function chartSentIndex(){
+  const c=ensure('chartSentIndex');if(!c)return;
+  c.showLoading({text:'加载中...',color:'#6366F1',textColor:'#8A8F98'});
+  callAPI('/sentiment_analyze',{stock_code:currentStock}).then(r=>{
+    c.hideLoading();
+    if(!r.ok||!r.results){
+      c.setOption({graphic:{type:'text',left:'center',top:'middle',style:{text:'暂无数据',fill:'#8A8F98'}}});return;
+    }
+    const d=r.results.map(item=>item.confidence*100);
+    c.setOption({backgroundColor:'transparent',
+      grid:{left:0,right:0,top:5,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:d.map((_,i)=>i+1),axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F'}},
+      yAxis:{type:'value',min:0,max:100,splitLine:{show:false},axisLabel:{show:false}},
+      series:[{type:'line',smooth:true,data:d,lineStyle:{color:'#06B6D4',width:2},areaStyle:{color:'rgba(6,182,212,.15)'},symbol:'none'}]});
+  }).catch(()=>{c.hideLoading()});
+}
+
+
+function initChartsFor(v){
+  if(v==='dashboard'){chartDashPerf();chartDashSent()}
+  if(v==='sentiment'){chartSentIndex()}
+  if(v==='viz'){loadRealKline();chartReturns()}
+  Object.values(charts).forEach(c=>c&&c.resize());
+}
+
+/* indicator table - loaded via loadIndicatorTable() on page navigation */
+
+/* ============ INTERACTIONS ============ */
+/* drop zone */
+const dz=document.getElementById('dropZone');
+if(dz)dz.addEventListener('click',()=>{document.getElementById('fileInput').click()});
+
+/* pipeline steps */
+document.querySelectorAll('.step').forEach(s=>s.addEventListener('click',()=>{
+  s.classList.toggle('on');
+  if(s.dataset.step==='backtest'&&s.classList.contains('on')){
+    const ind=document.querySelector('.step[data-step="indicator"]');
+    if(!ind.classList.contains('on')){ind.classList.add('on');logPipeline('i','自动补齐依赖：已勾选「计算技术指标」')}
+  }
+}));
+function logPipeline(type,msg){
+  const log=document.getElementById('pipelineLog');
+  const t=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  const div=document.createElement('div');div.className=type;div.textContent=`[${t}] ${msg}`;
+  log.appendChild(div);log.scrollTop=log.scrollHeight;
+}
+const runPipe=document.getElementById('runPipeline');
+
+function updateResults(steps){
+  const c=document.getElementById('pipelineResults');c.innerHTML='';
+  const labels={indicator:'指标表',viz:'K线/收益图',sentiment:'情绪指数+事件',backtest:'绩效+资金曲线',report:'PDF 报告'};
+  steps.forEach(s=>{const d=document.createElement('div');d.style.cssText='padding:10px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;gap:10px';d.innerHTML=`<span class="badge b-green">完成</span><span style="font-size:12.5px">${labels[s]}</span>`;c.appendChild(d)});
+}
+
+/* backtest run - real binding is below */
+const runBt=document.getElementById('runBacktest');
+
+/* init */
+window.addEventListener('load',()=>{chartDashPerf();chartDashSent();loadDashboard();const sd=document.getElementById('btStartDate');const ed=document.getElementById('btEndDate');if(sd&&sd.value)btParams.start_date=sd.value;if(ed&&ed.value)btParams.end_date=ed.value;});
+
+async function loadDashboard(){
+  try{
+    const sr=await fetch(API+'/stocks').then(r=>r.json());
+    if(sr.ok&&sr.stocks){
+      const sc=document.getElementById('dashStockCount');
+      if(sc)sc.innerHTML=sr.stocks.length+'<span class="u">个</span>';
+      const si=document.getElementById('dashStockInfo');
+      if(si)si.textContent=sr.stocks.map(s=>s.code).join(' · ');
+      const total=sr.stocks.reduce((a,s)=>a+s.count,0);
+      const dc=document.getElementById('dashDataCount');
+      if(dc)dc.innerHTML=total.toLocaleString()+'<span class="u">条</span>';
+      const di=document.getElementById('dashDataInfo');
+      if(di)di.textContent=sr.stocks.map(s=>`${s.code}: ${s.count}条`).join(' · ');
+      if(sr.stocks.length>0){
+        currentStock=sr.stocks[0].code;
+        if(stockSel)stockSel.value=currentStock;
+        try{
+    const bt=await callAPI('/backtest',{stock_code:currentStock,short_ma:btParams.short_ma,long_ma:btParams.long_ma,init_capital:btParams.init_capital,start_date:btParams.start_date,end_date:btParams.end_date});
+          if(bt.ok){
+            const dr=document.getElementById('dashReturn');
+            if(dr){dr.innerHTML=`${bt.annual_return>0?'+':''}${bt.annual_return}<span class="u">%</span>`;dr.className=bt.annual_return>0?'stat-val up':'stat-val down'}
+            const dri=document.getElementById('dashReturnInfo');
+            if(dri)dri.textContent=`双均线(5/20) · 夏普 ${bt.sharpe} · ${bt.trade_count}笔交易`;
+          }
+        }catch(e){}
+        try{
+          const sent=await callAPI('/sentiment_analyze',{stock_code:currentStock});
+          if(sent.ok){
+            const dsi=document.getElementById('dashSentIndex');
+            if(dsi)dsi.innerHTML=sent.index+'<span class="u">/100</span>';
+            const dsinfo=document.getElementById('dashSentInfo');
+            if(dsinfo){dsinfo.textContent=`${sent.index>55?'偏乐观':'偏悲观'} · AI研判 ${sent.results.length}条舆情`;dsinfo.className=sent.index>55?'delta up':'delta down'}
+          }
+        }catch(e){}
+      }
+    }
+  }catch(e){}
+  refreshActivityTable();
+}
+window.addEventListener('resize',()=>Object.values(charts).forEach(c=>c&&c.resize()));
+
+/* ============ REAL API BINDINGS ============ */
+const API='/api';
+let currentStock='600519';
+let btParams={short_ma:5,long_ma:20,init_capital:100000,start_date:'',end_date:''};
+
+/* --- 全局操作日志系统 --- */
+const ACTIVITY_LOG_KEY='quantmind_activity_log';
+function getActivityLog(){
+  try{return JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY)||'[]')}catch(e){return []}
+}
+function saveActivityLog(log){
+  const now=Date.now();
+  const filtered=log.filter(e=>now-(e.ts||0)<3600000);
+  try{localStorage.setItem(ACTIVITY_LOG_KEY,JSON.stringify(filtered))}catch(e){}
+}
+function logActivity(module,event,status){
+  const now=Date.now();
+  const entry={time:new Date().toLocaleTimeString('zh-CN',{hour12:false}),date:new Date().toISOString().slice(0,10),module,event,status,ts:now};
+  const log=getActivityLog().filter(e=>now-(e.ts||0)<3600000);
+  log.unshift(entry);
+  saveActivityLog(log);
+  refreshActivityTable();
+  return entry;
+}
+function refreshActivityTable(){
+  const tb=document.getElementById('dashActivityTable');if(!tb)return;
+  const log=getActivityLog();
+  if(!log.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">暂无活动记录</td></tr>';return}
+  tb.innerHTML='';
+  log.slice(0,20).forEach(a=>{
+    const badge=a.status==='ok'?'b-green':a.status==='fail'?'b-red':a.status==='info'?'b-indigo':'b-gray';
+    const statusText=a.status==='ok'?'完成':a.status==='fail'?'失败':a.status==='info'?'信息':'待定';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="mono">${a.time}</td><td>${a.module}</td><td>${a.event}</td><td><span class="badge ${badge}">${statusText}</span></td>`;
+    tb.appendChild(tr);
+  });
+}
+
+async function callAPI(url,body){
+  const r=await fetch(API+url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  return r.json();
+}
+function setStatus(id,msg,color){
+  const el=document.getElementById(id);if(!el)return;
+  el.textContent=msg;if(color)el.style.color=color;
+}
+
+/* --- 全局股票选择器 --- */
+const stockSel=document.getElementById('globalStockSel');
+async function refreshStockList(){
+  try{
+    const r=await fetch(API+'/stocks').then(r=>r.json());
+    if(!r.ok||!r.stocks)return;
+    const cur=stockSel.value||currentStock;
+    const opts=r.stocks.map(s=>({val:s.code,text:`${s.code} ${s.name} (${s.count}条 · ${s.source})`}));
+    [stockSel,document.getElementById('vizStockSel')].forEach(sel=>{
+      if(!sel)return;sel.innerHTML='';
+      opts.forEach(o=>{const opt=document.createElement('option');opt.value=o.val;opt.textContent=o.text;sel.appendChild(opt)});
+      if(cur)sel.value=cur;
+    });
+    if(!stockSel.value&&r.stocks.length){stockSel.value=r.stocks[0].code;currentStock=r.stocks[0].code}
+    const btInput=document.getElementById('btStockInput');if(btInput)btInput.value=currentStock;
+  }catch(e){console.log('stock list failed',e)}
+}
+if(stockSel)stockSel.addEventListener('change',()=>{
+  currentStock=stockSel.value;
+  const vizSel=document.getElementById('vizStockSel');if(vizSel)vizSel.value=currentStock;
+  const btInput=document.getElementById('btStockInput');if(btInput)btInput.value=currentStock;
+  const v=document.querySelector('.view.active')?.id?.replace('view-','');
+  if(v==='viz')loadRealKline();
+  if(v==='process')loadIndicatorTable();
+});
+const vizSel2=document.getElementById('vizStockSel');
+if(vizSel2)vizSel2.addEventListener('change',()=>{
+  currentStock=vizSel2.value;if(stockSel)stockSel.value=currentStock;
+  const btInput=document.getElementById('btStockInput');if(btInput)btInput.value=currentStock;
+  loadRealKline();
+});
+const vizRangeSel=document.getElementById('vizRangeSel');
+if(vizRangeSel)vizRangeSel.addEventListener('change',()=>loadRealKline());
+refreshStockList();
+
+/* --- 导入页：生成模拟数据 --- */
+const btnGen=document.getElementById('btnGenData');
+if(btnGen)btnGen.addEventListener('click',async()=>{
+  const sc=document.getElementById('importStockCode')?.value?.trim()||'sample_'+Date.now();
+  const sn=document.getElementById('importStockName')?.value?.trim()||'';
+  btnGen.disabled=true;setStatus('importStatus','正在生成模拟数据...','var(--amber)');
+  try{
+    const r=await callAPI('/fetch',{stock_code:sc,stock_name:sn,days:250});
+    setStatus('importStatus','✓ '+r.msg,'var(--green)');
+    logActivity('数据导入','生成模拟数据 '+sc+'：'+r.msg,'ok');
+    updateImportInfo(sc+'.sample','SAMPLE',r.count||0);
+    currentStock=sc;await refreshStockList();if(stockSel)stockSel.value=sc;
+  }catch(e){setStatus('importStatus','✗ '+e,'var(--red)');logActivity('数据导入','生成模拟数据失败：'+e,'fail')}finally{btnGen.disabled=false}
+});
+
+/* --- 导入页：多格式文件上传 --- */
+function updateImportInfo(filename,fmt,count){
+  const di=document.getElementById('importDetectInfo');
+  if(di)di.innerHTML=`<span class="kv">文件: <b>${filename}</b></span><span class="kv">探测格式: <b>${fmt}</b></span><span class="kv">编码: <b>UTF-8</b></span><span class="kv">数据行: <b>${count}</b></span>`;
+  const cr=document.getElementById('importCleanReport');
+  if(cr)cr.innerHTML=`<div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="up">${count}</div><div style="font-size:11px;color:var(--muted)">有效记录</div></div><div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="mono">0</div><div style="font-size:11px;color:var(--muted)">缺失填充</div></div><div class="card" style="padding:12px;text-align:center"><div style="font-size:20px;font-weight:600" class="mono">0</div><div style="font-size:11px;color:var(--muted)">异常修正</div></div>`;
+  const ht=document.getElementById('importHistoryTable');
+  if(ht){
+    const now=new Date();
+    const ts=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const badge=fmt==='CSV'?'b-gray':fmt==='XML'?'b-purple':fmt==='XLSX'?'b-green':'b-indigo';
+    const row=`<tr><td class="mono">${filename}</td><td><span class="badge ${badge}">${fmt}</span></td><td class="mono">${count.toLocaleString()}</td><td class="mono">${ts}</td><td><span class="badge b-green">已入库</span></td></tr>`;
+    const empty=ht.querySelector('tr td[colspan]');
+    if(empty)ht.innerHTML=row;else ht.insertAdjacentHTML('afterbegin',row);
+  }
+}
+const fileInput=document.getElementById('fileInput');
+const btnImportCsv=document.getElementById('btnImportCsv');
+if(btnImportCsv)btnImportCsv.addEventListener('click',()=>fileInput.click());
+if(fileInput)fileInput.addEventListener('change',async()=>{
+  const f=fileInput.files[0];if(!f)return;
+  const fname=f.name.replace(/\.[^.]+$/,'');
+  const sc=document.getElementById('importStockCode')?.value?.trim()||fname;
+  btnImportCsv.disabled=true;setStatus('importStatus','正在导入 '+f.name+'...','var(--amber)');
+  const fd=new FormData();fd.append('file',f);fd.append('stock_code',sc);fd.append('stock_name',document.getElementById('importStockName')?.value?.trim()||'');
+  try{
+    const r=await fetch(API+'/import_file',{method:'POST',body:fd}).then(r=>r.json());
+    if(r.ok){
+      setStatus('importStatus','✓ '+r.msg,'var(--green)');
+      logActivity('数据导入','导入文件 '+f.name+'：'+r.msg,'ok');
+      const ext=f.name.split('.').pop().toUpperCase();
+      updateImportInfo(f.name,ext,r.count||0);
+      currentStock=sc;await refreshStockList();if(stockSel)stockSel.value=sc;
+    }else{
+      setStatus('importStatus','✗ '+r.msg,'var(--red)');
+      logActivity('数据导入','导入文件 '+f.name+'失败：'+r.msg,'fail');
+    }
+  }catch(e){setStatus('importStatus','✗ '+e,'var(--red)');logActivity('数据导入','导入文件异常：'+e,'fail')}finally{btnImportCsv.disabled=false}
+});
+
+/* --- 导入页：AkShare获取 --- */
+const btnFetchApi=document.getElementById('btnFetchApi');
+if(btnFetchApi)btnFetchApi.addEventListener('click',async()=>{
+  const sc=document.getElementById('importStockCode')?.value?.trim()||prompt('输入股票代码(如600519):','600519');
+  if(!sc)return;
+  btnFetchApi.disabled=true;setStatus('importStatus','正在通过AkShare获取 '+sc+' ...','var(--amber)');
+  try{
+    const r=await callAPI('/fetch_api',{stock_code:sc,days:250});
+    if(r.ok){
+      setStatus('importStatus','✓ '+r.msg,'var(--green)');
+      logActivity('数据导入','AkShare获取 '+sc+'：'+r.msg,'ok');
+      updateImportInfo(sc+'.akshare','AKSHARE',r.count||0);
+      currentStock=sc;await refreshStockList();if(stockSel)stockSel.value=sc;
+    }else{
+      setStatus('importStatus','✗ '+r.msg,'var(--red)');
+    }
+  }catch(e){setStatus('importStatus','✗ '+e,'var(--red)')}finally{btnFetchApi.disabled=false}
+});
+
+/* --- 导入页：通达信盘后数据导入 --- */
+const tdxFileInput=document.getElementById('tdxFileInput');
+const btnImportTdx=document.getElementById('btnImportTdx');
+if(btnImportTdx)btnImportTdx.addEventListener('click',()=>tdxFileInput.click());
+if(tdxFileInput)tdxFileInput.addEventListener('change',async()=>{
+  const f=tdxFileInput.files[0];if(!f)return;
+  const fname=f.name.replace(/\.[^.]+$/,'');
+  const sc=document.getElementById('importStockCode')?.value?.trim()||fname;
+  btnImportTdx.disabled=true;setStatus('importStatus','正在导入通达信数据 '+f.name+'...','var(--amber)');
+  const fd=new FormData();fd.append('file',f);fd.append('stock_code',sc);fd.append('stock_name',document.getElementById('importStockName')?.value?.trim()||'');
+  try{
+    const r=await fetch(API+'/import_tdx',{method:'POST',body:fd}).then(r=>r.json());
+    if(r.ok){
+      setStatus('importStatus','✓ '+r.msg,'var(--green)');
+      logActivity('数据导入','通达信导入 '+f.name+'：'+r.msg,'ok');
+      updateImportInfo(f.name,'TDX',r.count||0);
+      currentStock=sc;await refreshStockList();if(stockSel)stockSel.value=sc;
+    }else{
+      setStatus('importStatus','✗ '+r.msg,'var(--red)');
+    }
+  }catch(e){setStatus('importStatus','✗ '+e,'var(--red)')}finally{btnImportTdx.disabled=false;tdxFileInput.value=''}
+});
+
+/* --- 导入页：AI列名映射分析 --- */
+const btnColMap=document.getElementById('btnColMap');
+if(btnColMap)btnColMap.addEventListener('click',()=>{
+  const fi=document.createElement('input');fi.type='file';fi.accept='.csv,.xlsx,.xls,.json,.xml';
+  fi.addEventListener('change',async()=>{
+    const f=fi.files[0];if(!f)return;
+    btnColMap.disabled=true;setStatus('importStatus','正在分析列名映射...','var(--amber)');
+    const fd=new FormData();fd.append('file',f);
+    try{
+      const r=await fetch(API+'/column_mapping',{method:'POST',body:fd}).then(r=>r.json());
+      if(r.ok&&r.mappings){
+        const tb=document.getElementById('colMapTable');if(!tb)return;
+        tb.innerHTML='';
+        r.mappings.forEach(m=>{
+          const badgeClass=m.mapped==='忽略'?'b-gray':'b-indigo';
+          const opBadge=m.mapped==='忽略'?'b-amber':'b-green';
+          const opText=m.mapped==='忽略'?'待确认':'已确认';
+          const confColor=m.confidence>80?'var(--green)':m.confidence>60?'var(--amber)':'var(--red)';
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td class="mono">${m.original}</td><td class="mono">${m.sample}</td><td><span class="badge ${badgeClass}">${m.mapped}</span></td><td><div class="conf"><div class="conf-bar"><i style="width:${m.confidence}%"></i></div>${m.confidence}%</div></td><td style="color:var(--muted);font-size:11.5px">${m.reason}</td><td><span class="badge ${opBadge}">${opText}</span></td>`;
+          tb.appendChild(tr);
+        });
+        setStatus('importStatus','✓ AI列名映射分析完成，共 '+r.mappings.length+' 列','var(--green)');
+      }else{
+        setStatus('importStatus','✗ '+(r.msg||'分析失败'),'var(--red)');
+      }
+    }catch(e){setStatus('importStatus','✗ '+e,'var(--red)')}finally{btnColMap.disabled=false}
+  });
+  fi.click();
+});
+
+/* --- 处理页：执行清洗 --- */
+const btnClean=document.getElementById('btnClean');
+if(btnClean)btnClean.addEventListener('click',async()=>{
+  btnClean.textContent='清洗中...';
+  try{
+    const r=await callAPI('/clean',{stock_code:currentStock});
+    btnClean.textContent='执行清洗 ✓ ('+r.msg+')';
+    logActivity('数据处理','数据清洗 '+currentStock+'：'+r.msg,'ok');
+    setTimeout(()=>btnClean.textContent='执行清洗',3000);
+  }catch(e){btnClean.textContent='执行清洗 ✗';logActivity('数据处理','数据清洗失败：'+e,'fail')}
+});
+
+/* --- 处理页：计算指标 --- */
+const btnCalcInd=document.getElementById('btnCalcInd');
+if(btnCalcInd)btnCalcInd.addEventListener('click',async()=>{
+  btnCalcInd.textContent='计算中...';
+  try{
+    const r=await callAPI('/indicators',{stock_code:currentStock});
+    fillIndicatorTable(r.rows);
+    btnCalcInd.textContent='计算指标 ✓';
+    logActivity('数据处理','计算技术指标 '+currentStock+'：'+r.msg,'ok');
+    setTimeout(()=>btnCalcInd.textContent='计算指标',2000);
+  }catch(e){btnCalcInd.textContent='计算指标 ✗';logActivity('数据处理','计算指标失败：'+e,'fail')}
+});
+function fillIndicatorTable(rows){
+  const tb=document.getElementById('indicatorTable');if(!tb||!rows||!rows.length)return;
+  tb.innerHTML='';
+  rows.forEach(k=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="mono">${k.date}</td><td class="mono">${k.open!=null?k.open.toFixed(2):'—'}</td><td class="mono">${k.high!=null?k.high.toFixed(2):'—'}</td><td class="mono">${k.low!=null?k.low.toFixed(2):'—'}</td><td class="mono">${k.close!=null?k.close.toFixed(2):'—'}</td><td class="mono">${k.ma5.toFixed(1)}</td><td class="mono">${k.ma20.toFixed(1)}</td><td class="mono ${k.macd>0?'up':'down'}">${k.macd.toFixed(2)}</td><td class="mono">—</td><td class="mono">${k.rsi.toFixed(0)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+async function loadIndicatorTable(){
+  try{
+    const r=await callAPI('/indicators',{stock_code:currentStock});
+    if(r.ok){fillIndicatorTable(r.rows);const t=document.getElementById('indicatorTag');if(t)t.textContent=currentStock+' · 近 10 日';}
+  }catch(e){}
+}
+
+/* --- 可视化页：加载真实K线 --- */
+async function loadRealKline(){
+  try{
+    const days=document.getElementById('vizRangeSel')?.value||'';
+    const url=API+'/quotation/'+currentStock+(days?'?days='+days:'');
+    const r=await fetch(url).then(r=>r.json());
+    if(!r.ok||!r.rows||!r.rows.length)return;
+    const c=ensure('chartKline');if(!c)return;
+    const cats=r.rows.map(k=>k.date);
+    const ohlc=r.rows.map(k=>[k.open,k.close,k.low,k.high]);
+    const vols=r.rows.map(k=>k.volume);
+    const ma5=r.rows.map((_,i)=>{if(i<4)return null;let s=0;for(let j=i-4;j<=i;j++)s+=r.rows[j].close;return +(s/5).toFixed(2)});
+    const ma20=r.rows.map((_,i)=>{if(i<19)return null;let s=0;for(let j=i-19;j<=i;j++)s+=r.rows[j].close;return +(s/20).toFixed(2)});
+    c.setOption({backgroundColor:'transparent',
+      tooltip:{trigger:'axis',axisPointer:{type:'cross'},backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+      legend:{data:['MA5','MA20'],textStyle:{color:'#8A8F98'},top:0},
+      grid:[{left:0,right:0,top:30,bottom:'32%'},{left:0,right:0,top:'72%',bottom:0}],
+      xAxis:[{type:'category',data:cats,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F'}},{gridIndex:1,type:'category',data:cats,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{show:false}}],
+      yAxis:[{scale:true,splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F'}},{gridIndex:1,splitNumber:2,splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F'}}],
+      series:[
+        {type:'candlestick',data:ohlc,itemStyle:{color:'#22C55E',color0:'#EF4444',borderColor:'#22C55E',borderColor0:'#EF4444'}},
+        {name:'MA5',type:'line',data:ma5,smooth:true,lineStyle:{color:'#6366F1',width:1.5},symbol:'none'},
+        {name:'MA20',type:'line',data:ma20,smooth:true,lineStyle:{color:'#A855F7',width:1.5},symbol:'none'},
+        {xAxisIndex:1,yAxisIndex:1,type:'bar',data:vols,itemStyle:{color:'rgba(99,102,241,.4)'}}
+      ]},true);
+  }catch(e){console.log('kline load failed',e)}
+}
+
+/* --- 回测页：真实回测 --- */
+if(runBt)runBt.addEventListener('click',async()=>{
+  const bar=document.getElementById('btProgress'),st=document.getElementById('btStatus');
+  st.textContent='回测中...';runBt.disabled=true;bar.style.width='30%';
+  try{
+    const btInputs=document.querySelectorAll('#view-backtest .field input');
+    const sc=currentStock;
+    const sh=parseInt(btInputs[1]?.value||'5');
+    const ln=parseInt(btInputs[2]?.value||'20');
+    const cap=parseFloat(btInputs[3]?.value||'100000');
+    const sd=document.getElementById('btStartDate')?.value||'';
+    const ed=document.getElementById('btEndDate')?.value||'';
+    btParams={short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed};
+    const r=await callAPI('/backtest',{stock_code:sc,short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed});
+    bar.style.width='100%';
+    if(!r.ok){st.textContent=r.msg;logActivity('量化回测','回测失败 '+sc+'：'+r.msg,'fail');return}
+    st.textContent=`回测完成 · 年化 ${r.annual_return}% · 夏普 ${r.sharpe}`;
+    logActivity('量化回测',`回测 ${sc}(${sd}~${ed})：年化${r.annual_return}% 回撤${r.max_drawdown}% 夏普${r.sharpe} ${r.trade_count}笔`,'ok');
+    const elA=document.getElementById('btCardAnnual'),elD=document.getElementById('btCardDrawdown'),elW=document.getElementById('btCardWinrate'),elS=document.getElementById('btCardSharpe');
+    if(elA){elA.textContent=`${r.annual_return>0?'+':''}${r.annual_return}%`;elA.className=r.annual_return>0?'up':'down'}
+    if(elD)elD.textContent=`${r.max_drawdown}%`;
+    if(elW)elW.textContent=`${r.win_rate}%`;
+    if(elS)elS.textContent=r.sharpe;
+    const ec=ensure('chartEquity');if(ec&&r.equity_curve&&r.equity_curve.length){
+      ec.setOption({backgroundColor:'transparent',
+        tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+        grid:{left:0,right:0,top:10,bottom:0,containLabel:true},
+        xAxis:{type:'category',data:r.equity_curve.map((_,i)=>i+1),axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},axisLabel:{color:'#56585F'}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},axisLabel:{color:'#56585F',formatter:v=>(v/1000).toFixed(0)+'k'}},
+        series:[{type:'line',smooth:true,data:r.equity_curve,lineStyle:{color:'#6366F1',width:2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,.25)'},{offset:1,color:'rgba(99,102,241,0)'}])},symbol:'none'}]},true);
+    }
+    const tt=document.querySelector('#view-backtest .tbl-wrap tbody');
+    if(tt&&r.trades&&r.trades.length){
+      tt.innerHTML='';
+      r.trades.forEach((t,i)=>{
+        const tr=document.createElement('tr');
+        const badge=t.dir==='BUY'?'b-green':'b-red';
+        const dirText=t.dir==='BUY'?'买入':'卖出';
+        tr.innerHTML=`<td class="mono">${i+1}</td><td class="mono">${t.date}</td><td><span class="badge ${badge}">${dirText}</span></td><td class="mono">${t.price}</td><td class="mono">${t.shares}</td><td class="mono">—</td>`;
+        tt.appendChild(tr);
+      });
+    }
+  }catch(e){st.textContent='回测出错: '+e}finally{runBt.disabled=false}
+});
+
+/* --- 流水线：真实执行 --- */
+if(runPipe)runPipe.addEventListener('click',async()=>{
+  const steps=[...document.querySelectorAll('.step.on')].map(s=>s.dataset.step);
+  if(!steps.length){logPipeline('w','未勾选任何步骤');return}
+  logPipeline('i','开始执行流水线（'+currentStock+'），共 '+steps.length+' 步');
+  runPipe.disabled=true;
+  try{
+    const r=await callAPI('/pipeline',{steps:steps,stock_code:currentStock});
+    if(r.results){
+      r.results.forEach(res=>{
+        if(res.ok)logPipeline('ok','▶ '+res.msg);
+        else logPipeline('w','✗ '+res.msg);
+      });
+      logPipeline('ok','流水线执行完成 ✓');
+      logActivity('分析流水线',`执行流水线 ${currentStock}：${steps.length}步完成`,'ok');
+      updateResults(steps);
+      await refreshStockList();
+    }
+  }catch(e){logPipeline('w','执行出错: '+e);logActivity('分析流水线','执行出错：'+e,'fail')}finally{runPipe.disabled=false}
+});
+
+/* --- 舆情页：采集舆情 --- */
+const btnSentCollect=document.getElementById('btnSentCollect');
+if(btnSentCollect)btnSentCollect.addEventListener('click',async()=>{
+  btnSentCollect.disabled=true;
+  const hint=document.getElementById('sentCollectHint');
+  if(hint)hint.textContent='正在采集舆情...';
+  try{
+    const r=await callAPI('/sentiment_collect',{stock_code:currentStock});
+    if(r.ok){
+      const tag=r.simulated?'<span class="badge b-amber">模拟数据</span>':'<span class="badge b-green">真实采集</span>';
+      if(hint)hint.innerHTML=r.msg+' '+tag;
+      logActivity('舆情决策','采集舆情 '+currentStock+'：'+r.msg,'ok');
+      btnSentCollect.textContent='采集完成 ✓';
+      setTimeout(()=>btnSentCollect.textContent='采集舆情',2000);
+      const st=document.getElementById('sentSourceTable');
+      if(st&&r.sources){
+        st.innerHTML=r.sources.map(s=>{
+          const badge=s.status==='已采集'?'b-green':'b-amber';
+          return `<tr><td>${s.source}</td><td class="mono">${s.count} 条</td><td><span class="badge ${badge}">${s.status}</span></td></tr>`;
+        }).join('');
+      }
+    }else{
+      if(hint)hint.textContent='✗ '+(r.msg||'采集失败');
+      logActivity('舆情决策','采集舆情失败：'+(r.msg||''),'fail');
+    }
+  }catch(e){if(hint)hint.textContent='✗ '+e;logActivity('舆情决策','采集舆情异常：'+e,'fail')}finally{btnSentCollect.disabled=false}
+});
+
+/* --- 舆情页：AI情感分析 --- */
+const btnSentAnalyze=document.getElementById('btnSentAnalyze');
+if(btnSentAnalyze)btnSentAnalyze.addEventListener('click',async()=>{
+  btnSentAnalyze.disabled=true;btnSentAnalyze.textContent='AI分析中...';
+  try{
+    const r=await callAPI('/sentiment_analyze',{stock_code:currentStock});
+    if(r.ok){
+      const tag=document.getElementById('sentAnalyzeTag');
+      if(tag)tag.textContent='US-007 · '+r.results.length+' 条';
+      const idxVal=document.getElementById('sentIndexVal');
+      if(idxVal)idxVal.innerHTML=r.index+'<span class="u">/100</span>';
+      const idxDelta=document.getElementById('sentIndexDelta');
+      if(idxDelta){idxDelta.textContent=r.index>55?'偏乐观':r.index<45?'偏悲观':'中性';idxDelta.className='delta '+(r.index>55?'up':r.index<45?'down':'')}
+      const barG=document.getElementById('sentBarG'),barN=document.getElementById('sentBarN'),barR=document.getElementById('sentBarR');
+      if(barG)barG.style.width=r.pos_pct+'%';
+      if(barN)barN.style.width=r.neu_pct+'%';
+      if(barR)barR.style.width=r.neg_pct+'%';
+      const posPct=document.getElementById('sentPosPct'),neuPct=document.getElementById('sentNeuPct'),negPct=document.getElementById('sentNegPct');
+      if(posPct)posPct.textContent='看涨 '+r.pos_pct+'%';
+      if(neuPct)neuPct.textContent='中性 '+r.neu_pct+'%';
+      if(negPct)negPct.textContent='看跌 '+r.neg_pct+'%';
+      const tb=document.getElementById('sentResultTable');if(tb){
+        tb.innerHTML='';
+        r.results.forEach(item=>{
+          let badge='b-gray';
+          if(item.sentiment.includes('强烈看涨'))badge='b-green';
+          else if(item.sentiment.includes('看涨'))badge='b-green';
+          else if(item.sentiment.includes('看跌'))badge='b-red';
+          else if(item.sentiment.includes('偏空'))badge='b-amber';
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${item.title}</td><td>${item.source}</td><td><span class="badge ${badge}">${item.sentiment}</span></td><td class="mono">${item.confidence.toFixed(2)}</td><td><span class="badge b-indigo">${item.event}</span></td>`;
+          tb.appendChild(tr);
+        });
+      }
+      const evList=document.getElementById('sentEventsList');if(evList){
+        evList.innerHTML='';
+        r.events.forEach(ev=>{
+          const evBadge=ev.type==='利好'?'b-green':ev.type==='利空'?'b-red':ev.type==='资金面'?'b-cyan':'b-purple';
+          const div=document.createElement('div');
+          div.style.cssText='padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)';
+          div.innerHTML=`<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:13px">${ev.name}</b><span class="badge ${evBadge}">${ev.type}</span></div><div style="font-size:11.5px;color:var(--muted)">提及 ${ev.count} 条 · 情感均值 ${ev.score>0?'+':''}${ev.score} · ${ev.trend||'—'}</div>`;
+          evList.appendChild(div);
+        });
+      }
+      btnSentAnalyze.textContent='AI情感分析 ✓';
+      logActivity('舆情决策',`AI情感分析 ${currentStock}：情绪指数${r.index}/100 看涨${r.pos_pct}% 看跌${r.neg_pct}% ${r.results.length}条新闻`,'ok');
+      setTimeout(()=>btnSentAnalyze.textContent='AI情感分析',2000);
+    }else{
+      btnSentAnalyze.textContent='AI情感分析 ✗';
+      setTimeout(()=>btnSentAnalyze.textContent='AI情感分析',2000);
+    }
+  }catch(e){btnSentAnalyze.textContent='AI情感分析 ✗';setTimeout(()=>btnSentAnalyze.textContent='AI情感分析',2000)}finally{btnSentAnalyze.disabled=false}
+});
+
+/* --- 舆情页：保存融合策略 --- */
+const btnSentFuse=document.getElementById('btnSentFuse');
+if(btnSentFuse)btnSentFuse.addEventListener('click',async()=>{
+  const threshold=parseInt(document.getElementById('sentThreshold')?.value||'55');
+  btnSentFuse.disabled=true;btnSentFuse.textContent='保存中...';
+  try{
+    const r=await callAPI('/sentiment_fuse',{threshold:threshold});
+    if(r.ok){
+      btnSentFuse.textContent='已保存 ✓ ('+r.msg+')';
+      setTimeout(()=>btnSentFuse.textContent='保存融合策略',3000);
+    }else{
+      btnSentFuse.textContent='保存失败 ✗';
+      setTimeout(()=>btnSentFuse.textContent='保存融合策略',2000);
+    }
+  }catch(e){btnSentFuse.textContent='保存失败 ✗';setTimeout(()=>btnSentFuse.textContent='保存融合策略',2000)}finally{btnSentFuse.disabled=false}
+});
+
+/* --- 可视化页：导出图表 --- */
+const btnExportPng=document.getElementById('btnExportPng');
+if(btnExportPng)btnExportPng.addEventListener('click',async()=>{
+  btnExportPng.disabled=true;btnExportPng.textContent='生成中...';
+  try{
+    const r=await callAPI('/export_chart',{stock_code:currentStock,format:'png'});
+    if(r.ok){
+      btnExportPng.textContent='导出成功 ✓';
+      logActivity('行情可视化','导出PNG '+currentStock+'：'+r.url,'ok');
+      window.open(r.url,'_blank');
+      setTimeout(()=>btnExportPng.textContent='导出 PNG',2000);
+    }else{btnExportPng.textContent='导出失败 ✗';setTimeout(()=>btnExportPng.textContent='导出 PNG',2000)}
+  }catch(e){btnExportPng.textContent='导出失败 ✗';setTimeout(()=>btnExportPng.textContent='导出 PNG',2000)}finally{btnExportPng.disabled=false}
+});
+const btnExportPdf=document.getElementById('btnExportPdf');
+if(btnExportPdf)btnExportPdf.addEventListener('click',async()=>{
+  btnExportPdf.disabled=true;btnExportPdf.textContent='生成中...';
+  try{
+    const r=await callAPI('/export_chart',{stock_code:currentStock,format:'pdf'});
+    if(r.ok){
+      btnExportPdf.textContent='导出成功 ✓';
+      window.open(r.url,'_blank');
+      setTimeout(()=>btnExportPdf.textContent='导出 PDF',2000);
+    }else{btnExportPdf.textContent='导出失败 ✗';setTimeout(()=>btnExportPdf.textContent='导出 PDF',2000)}
+  }catch(e){btnExportPdf.textContent='导出失败 ✗';setTimeout(()=>btnExportPdf.textContent='导出 PDF',2000)}finally{btnExportPdf.disabled=false}
+});
+
+/* --- 报告页：导出报告 --- */
+async function generateReportPreview(){
+  try{
+    const r=await callAPI('/export_report',{stock_code:currentStock,format:'html',start_date:btParams.start_date,end_date:btParams.end_date});
+    if(!r.ok)return;
+    const now=new Date();
+    const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+    const rangeTxt=btParams.start_date||btParams.end_date?` · 回测区间 ${btParams.start_date||'起始'}~${btParams.end_date||'至今'}`:' · 全部数据';
+    const elT=document.getElementById('reportTitle');
+    if(elT)elT.textContent=currentStock+' 综合量化分析报告';
+    const elSt=document.getElementById('reportSubtitle');
+    if(elSt)elSt.textContent='生成时间：'+ts+rangeTxt;
+    const bt=await callAPI('/backtest',{stock_code:currentStock,short_ma:btParams.short_ma,long_ma:btParams.long_ma,init_capital:btParams.init_capital,start_date:btParams.start_date,end_date:btParams.end_date});
+    if(bt.ok){
+      const el=document.getElementById('reportPerf');
+      if(el)el.innerHTML=`<span class="kv">年化 <b class="${bt.annual_return>0?'up':'down'}">${bt.annual_return>0?'+':''}${bt.annual_return}%</b></span><span class="kv">回撤 <b class="down">${bt.max_drawdown}%</b></span><span class="kv">胜率 <b>${bt.win_rate}%</b></span><span class="kv">夏普 <b class="${bt.sharpe>0?'up':'down'}">${bt.sharpe}</b></span>`;
+    }
+    const sent=await callAPI('/sentiment_analyze',{stock_code:currentStock});
+    if(sent.ok){
+      const elS=document.getElementById('reportSentiment');
+      if(elS)elS.textContent=`情绪指数 ${sent.index}/100 ${sent.index>55?'偏乐观':'偏悲观'}；看涨${sent.pos_pct}% 看跌${sent.neg_pct}%`;
+      const elO=document.getElementById('reportOverview');
+      if(elO)elO.textContent=`回测区间 ${btParams.start_date||'全部数据起始'}~${btParams.end_date||'至今'}，情绪指数 ${sent.index}/100，${sent.results.length} 条舆情分析完成。`;
+      const elStr=document.getElementById('reportStrategy');
+      if(elStr)elStr.textContent=`双均线(5/20)交叉信号 + 情绪指数过滤买入（当前${sent.index}，${sent.index>=45?'允许买入':'拒绝买入'}），含手续费/滑点。`;
+    }
+    const elR=document.getElementById('reportRisk');
+    if(elR){
+      let risks=[];
+      risks.push('本报告基于历史数据回测，历史表现不代表未来收益，实盘交易存在亏损风险。');
+      if(bt&&bt.ok){
+        risks.push(`策略最大回撤达 ${bt.max_drawdown}%，请根据自身风险承受能力谨慎决策。`);
+        if(bt.trade_count<10)risks.push(`回测交易笔数仅 ${bt.trade_count} 次，样本量不足，统计结果可能不具代表性。`);
+        if(Math.abs(bt.sharpe)<0.5)risks.push('夏普比率较低，策略风险调整后收益不理想，需谨慎参考。');
+      }
+      if(btParams.start_date||btParams.end_date){
+        risks.push(`回测区间 ${btParams.start_date||'起始'}~${btParams.end_date||'至今'}，仅覆盖该区间数据，区间外行情未纳入。`);
+      }
+      if(sent&&sent.ok){
+        if(sent.index<45)risks.push('当前舆情情绪偏悲观，市场不确定性较高，建议观望或减仓。');
+        if(sent.results&&sent.results.length<5)risks.push(`舆情样本仅 ${sent.results.length} 条，情绪研判可靠性有限。`);
+      }
+      risks.push('舆情研判由 AI 基于关键词分析生成，无法保证信息完整性与判断准确性，仅供参考。');
+      risks.push('双均线策略为趋势跟踪型策略，在震荡行情中可能频繁产生虚假信号导致亏损。');
+      elR.innerHTML=risks.map(r=>'• '+r).join('<br>');
+    }
+    return r;
+  }catch(e){return null}
+}
+
+async function loadReportHistory(){
+  const tbody=document.getElementById('reportHistoryTable');
+  if(!tbody)return;
+  tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">加载中...</td></tr>';
+  try{
+    const res=await fetch('/api/reports');
+    const data=await res.json();
+    if(!data.reports||data.reports.length===0){
+      tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">暂无历史报告</td></tr>';
+      return;
+    }
+    const rptList=data.reports.filter(r=>r.type==='报告'||(r.filename&&r.filename.includes('report')));
+    if(rptList.length===0){
+      tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">暂无历史报告</td></tr>';
+      return;
+    }
+    tbody.innerHTML=rptList.map(rpt=>{
+      const name=rpt.filename||rpt.name||'未知';
+      const fmt=name.endsWith('.pdf')?'PDF':'HTML';
+      const url=rpt.url||('/exports/'+name);
+      return `<tr><td style="font-size:11.5px">${name}</td><td><span class="tag">${fmt}</span></td><td><button class="btn btn-ghost btn-sm" onclick="window.open('${url}','_blank')">打开</button> <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteReport('${name}')">删除</button></td></tr>`;
+    }).join('');
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--danger);padding:16px">加载失败</td></tr>';
+  }
+}
+
+async function deleteReport(filename){
+  if(!confirm('确认删除报告：'+filename+'？'))return;
+  try{
+    const res=await fetch('/api/reports/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})});
+    const data=await res.json();
+    if(data.ok){
+      logActivity('报告中心','删除报告 '+filename,'ok');
+      loadReportHistory();
+    }else{
+      alert('删除失败：'+(data.error||'未知错误'));
+    }
+  }catch(e){alert('删除失败：'+e.message)}
+}
+const btnReportPdf=document.getElementById('btnReportPdf');
+if(btnReportPdf)btnReportPdf.addEventListener('click',async()=>{
+  btnReportPdf.disabled=true;btnReportPdf.textContent='生成中...';
+  try{
+    const r=await generateReportPreview();
+    if(r&&r.ok){
+      btnReportPdf.textContent='导出成功 ✓';
+      logActivity('报告中心','导出PDF报告 '+currentStock+'：'+r.url,'ok');
+      window.open(r.url,'_blank');
+      setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000);
+    }else{btnReportPdf.textContent='导出失败 ✗';setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000)}
+  }catch(e){btnReportPdf.textContent='导出失败 ✗';setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000)}finally{btnReportPdf.disabled=false}
+});
+const btnReportHtml=document.getElementById('btnReportHtml');
+if(btnReportHtml)btnReportHtml.addEventListener('click',async()=>{
+  btnReportHtml.disabled=true;btnReportHtml.textContent='生成中...';
+  try{
+    const r=await generateReportPreview();
+    if(r&&r.ok){
+      btnReportHtml.textContent='导出成功 ✓';
+      logActivity('报告中心','导出报告 '+currentStock+'：'+r.url,'ok');
+      window.open(r.url,'_blank');
+      setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000);
+    }else{btnReportHtml.textContent='导出失败 ✗';setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000)}
+  }catch(e){btnReportHtml.textContent='导出失败 ✗';setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000)}finally{btnReportHtml.disabled=false}
+});
+
+/* --- 导航联动：切页时加载数据 --- */
+navItems.forEach(it=>it.addEventListener('click',()=>{
+  const v=it.dataset.view;
+
+  if(v==='process')setTimeout(loadIndicatorTable,100);
+  if(v==='viz')setTimeout(loadRealKline,100);
+  if(v==='backtest'){const bi=document.getElementById('btStockInput');if(bi)bi.value=currentStock;if(btParams.start_date){const sd=document.getElementById('btStartDate');if(sd)sd.value=btParams.start_date;}if(btParams.end_date){const ed=document.getElementById('btEndDate');if(ed)ed.value=btParams.end_date;}}
+  if(v==='report'){loadReportHistory();generateReportPreview()}
+}));
+
+</script>
+</body>
+</html>

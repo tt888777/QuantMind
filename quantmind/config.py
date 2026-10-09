@@ -1,0 +1,1 @@
+DB_URL = "mysql+pymysql://root:root123456@localhost:3306/quantmind?charset=utf8mb4"

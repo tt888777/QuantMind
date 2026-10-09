@@ -1,0 +1,7 @@
+flask>=3.0
+sqlalchemy>=2.0
+pandas
+pymysql
+matplotlib
+requests
+openpyxl

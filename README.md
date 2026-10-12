@@ -636,16 +636,18 @@ set HF_TOKEN=hf_xxxxxxxx          # Windows
 python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --check
 
 # 3. 正式上传（自动生成 Model Card，含真实指标）
-python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --gh-owner Jwwws
+python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame
 
 #    连 DAPT 底座一起传（+390MB，便于他人完整复现）
-python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame \
-    --include-dapt-base --gh-owner Jwwws
+python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --include-dapt-base
 ```
 
-> `--gh-owner` 决定 Model Card 里 GitHub 链接指向谁。**务必显式指定**，  
-> 否则会默认用 HF 用户名（本项目的 HF 账号与 GitHub 账号不同名）。  
-> 二次上传是幂等的：内容未变的文件（如 390MB 的 `model.safetensors`）会被跳过。
+> `--gh-owner` 决定 Model Card 里的 GitHub 链接指向谁，不指定时用项目默认
+> `tt888777`（脚本内的 `DEFAULT_GH_OWNER`）。
+> ⚠️ 本项目的 **HF 账号（`Roeyyyyyy`）与 GitHub 账号不同名**，所以这个默认值不能取 HF 用户名，
+> 否则模型卡会指向一个不存在的仓库。要指向别的账号就显式写 `--gh-owner <用户名>`。
+> 二次上传是**幂等**的：内容未变的文件（如 390MB 的 `model.safetensors`）会被跳过，
+> 只重传 Model Card 只需几秒。
 
 上传后仓库结构：
 

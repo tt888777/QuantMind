@@ -23,7 +23,7 @@ metrics:
 # QuantMind 中文金融情感三分类（DAPT + 财经新闻 LoRA）
 
 面向**中文财经新闻**的三分类情感模型：`看跌 / 看涨 / 中性`。
-用于 [QuantMind](https://github.com/Roeyyyyyy/QuantMind) 量化分析系统的「AI 智能体舆情决策」模块。
+用于 [QuantMind](https://github.com/tt888777/QuantMind) 量化分析系统的「AI 智能体舆情决策」模块。
 
 ## 模型说明
 

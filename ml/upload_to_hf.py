@@ -18,9 +18,10 @@
 
 用法：
     python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --check
-    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --gh-owner Jwwws
-    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --include-dapt-base --gh-owner Jwwws
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --include-dapt-base
     python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --private
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --gh-owner 别的GitHub账号
 
 上传完成后，其他人在全新电脑上执行：
 
@@ -45,6 +46,11 @@ METRICS_FILE = MODELS / MODULE_NAME / "metrics.json"
 # 上传必须走官方站点；镜像站不支持写入
 OFFICIAL_ENDPOINT = "https://huggingface.co"
 MIRROR_HOSTS = ("hf-mirror.com", "hfmirror")
+
+# Model Card 里 GitHub 链接的默认指向。
+# ⚠️ 本项目的 HF 账号（Roeyyyyyy）与 GitHub 账号（Jwwws）不同名，
+#    默认不能取 HF 用户名，否则会生成指向不存在仓库的链接。
+DEFAULT_GH_OWNER = "tt888777"
 
 WEIGHT_FILES = ["model.safetensors", "pytorch_model.bin"]
 
@@ -277,7 +283,9 @@ def main():
     ap.add_argument("--include-dapt-base", action="store_true",
                     help="连 DAPT 底座（约 390MB）一起上传到 dapt_base/，便于他人复现")
     ap.add_argument("--skip-adapter", action="store_true", help="不上传 adapter 子目录")
-    ap.add_argument("--gh-owner", default=None, help="Model Card 里指向的 GitHub 用户名，默认取 HF 用户名")
+    ap.add_argument("--gh-owner", default=None,
+                    help=f"Model Card 里指向的 GitHub 用户名，默认 {DEFAULT_GH_OWNER}"
+                         "（本项目实际的协作仓库）")
     ap.add_argument("--check", action="store_true", help="只列出将要上传的文件，不真正上传")
     args = ap.parse_args()
 
@@ -338,11 +346,11 @@ def main():
 
     repo_id = args.repo.strip()
     owner = repo_id.split("/")[0] if "/" in repo_id else ""
-    gh_owner = args.gh_owner or owner
+    gh_owner = args.gh_owner or DEFAULT_GH_OWNER
     if not args.gh_owner:
-        print(f"\n[提示] 未指定 --gh-owner，Model Card 的 GitHub 链接将指向 "
+        print(f"\n[提示] 未指定 --gh-owner，Model Card 的 GitHub 链接按项目默认指向 "
               f"https://github.com/{gh_owner}/QuantMind")
-        print("       如果 HF 账号与 GitHub 账号不同名，请加：--gh-owner 你的GitHub用户名")
+        print(f"       要用别的账号请加：--gh-owner <GitHub用户名>")
 
     try:
         login(token=token, add_to_git_credential=False)

@@ -38,15 +38,32 @@ quantmind/quantmind_local.db
 # ================= ML 训练环境（不要提交） =================
 ml/.venv/
 ml/__pycache__/
+ml/.cache/
+
+# ================= DAPT 语料（体积大，用 prepare_dapt_corpus.py 重新生成） =================
+ml/data/cn_market_dapt.txt
+
+# 多语言版 FLAME（7.6MB，本项目只用中文子集；需要时从 HF 重新下载）
+ml/data/flame_v1_alllang.csv
 
 # ================= 模型权重（体积过大，用脚本重新生成） =================
 # bert-base-chinese 底座 ~411MB：从 hf-mirror 重新下载
 # lora_guba/merged 合并模型 ~391MB：train_lora.py --merge 重新导出
-# 说明：LoRA adapter（~1.7MB）是训练产物，体积小，**要提交**
+# dapt_bert 域自适应底座 ~410MB：train_dapt.py 训练产出
+# lora_dapt/merged 合并模型 ~391MB：train_lora.py --merge 重新导出
+# lora_flame/merged 合并模型 ~391MB：train_lora.py --merge 重新导出
+# lora_dapt_flame/merged 合并模型 ~391MB：同上（DAPT 底座 + 新闻数据）
+# 说明：LoRA adapter（~1.6MB）是训练产物，体积小，**要提交**（各版本都提交）
 ml/models/bert-base-chinese/
 ml/models/lora_guba/merged/
 ml/models/lora_guba/_ckpt/
-ml/models/lora_dapt/
+ml/models/lora_dapt/merged/
+ml/models/lora_dapt/_ckpt/
+ml/models/lora_flame/merged/
+ml/models/lora_flame/_ckpt/
+ml/models/lora_dapt_flame/merged/
+ml/models/lora_dapt_flame/_ckpt/
+ml/models/dapt_bert/
 *.ckpt
 *.pt
 *.bin

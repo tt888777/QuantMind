@@ -14,3 +14,8 @@ transformers>=4.40
 peft>=0.10
 accelerate>=0.30
 scikit-learn>=1.3
+
+# 可选：仅当 train_dapt.py 用 `--corpus hf:...` 流式读 HF 数据集时需要。
+# 注意 CN-Market-Corpus 不能走流式（它不是 parquet，见 README 第二节），
+# 该语料请用 ml/prepare_dapt_corpus.py 构建（纯标准库，不需要本包）。
+datasets>=3.0

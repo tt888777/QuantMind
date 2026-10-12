@@ -1,0 +1,27 @@
+{
+  "src": "C:\\Users\\Jww\\source\\repos\\QuantMind\\ml\\data\\flame_zh_news.csv",
+  "raw": 14855,
+  "kept": 14680,
+  "train": 11744,
+  "test": 2936,
+  "dropped": {
+    "label": 0,
+    "short": 12,
+    "nonchinese": 30,
+    "dup": 133
+  },
+  "trad_converted": 5752,
+  "label_counts": {
+    "看跌": 3490,
+    "看涨": 7237,
+    "中性": 3953
+  },
+  "title_len": {
+    "mean": 29.1,
+    "median": 28.0,
+    "min": 8,
+    "max": 82
+  },
+  "test_ratio": 0.2,
+  "seed": 42
+}

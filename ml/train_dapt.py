@@ -22,6 +22,8 @@ import os
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+# 镜像站不支持 Xet 协议（huggingface_hub>=0.32 默认开启，会 404），必须关掉
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 import argparse
 import csv
@@ -69,8 +71,12 @@ def read_hf(spec: str, column: str, max_samples: int, split: str):
     dataset_id = spec.split(":", 1)[1]
     print(f"  [流式] {dataset_id} split={split} 取前 {max_samples:,} 条")
     ds = load_dataset(dataset_id, split=split, streaming=True)
-    cols = list(getattr(ds, "features", {}).keys()) if hasattr(ds, "features") else []
+    # 流式 IterableDataset 的 features 可能是 None（未解析 schema），不能直接 .keys()
+    feats = getattr(ds, "features", None)
+    cols = list(feats.keys()) if feats else []
     col = column if (not cols or column in cols) else (cols[0] if cols else column)
+    if cols:
+        print(f"  字段    : {cols}  -> 使用 '{col}'")
     texts = []
     for i, row in enumerate(ds):
         if i >= max_samples:

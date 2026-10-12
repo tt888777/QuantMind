@@ -1,0 +1,55 @@
+{
+  "base_model": "models/dapt_bert",
+  "data": "data/guba_title_all.csv",
+  "smoke": 0,
+  "epochs": 5.0,
+  "batch_size": 32,
+  "lr": 0.0005,
+  "max_len": 64,
+  "lora": {
+    "r": 8,
+    "alpha": 16,
+    "dropout": 0.1
+  },
+  "trainable_params": 297219,
+  "total_params": 102567174,
+  "train_rows": 8516,
+  "test_rows": 2130,
+  "metrics": {
+    "accuracy": 0.7446,
+    "macro_f1": 0.7408,
+    "report": {
+      "negative/看跌": {
+        "precision": 0.6728395061728395,
+        "recall": 0.6801872074882995,
+        "f1-score": 0.6764934057408845,
+        "support": 641.0
+      },
+      "positive/看涨": {
+        "precision": 0.7847457627118644,
+        "recall": 0.7491909385113269,
+        "f1-score": 0.7665562913907285,
+        "support": 618.0
+      },
+      "neutral/中性": {
+        "precision": 0.7701793721973094,
+        "recall": 0.7887485648679678,
+        "f1-score": 0.7793533749290982,
+        "support": 871.0
+      },
+      "accuracy": 0.7446009389671362,
+      "macro avg": {
+        "precision": 0.7425882136940043,
+        "recall": 0.7393755702891981,
+        "f1-score": 0.7408010240202371,
+        "support": 2130.0
+      },
+      "weighted avg": {
+        "precision": 0.745112318308253,
+        "recall": 0.7446009389671362,
+        "f1-score": 0.7446858454096814,
+        "support": 2130.0
+      }
+    }
+  }
+}

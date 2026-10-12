@@ -247,11 +247,25 @@ def main():
 
     model.save_pretrained(str(out / "adapter"))
     tokenizer.save_pretrained(str(out / "adapter"))
+    merged = None
     if args.merge:
         merged = model.merge_and_unload()
         merged.save_pretrained(str(out / "merged"), safe_serialization=True)
         tokenizer.save_pretrained(str(out / "merged"))
         print(f"  合并模型 -> {(out / 'merged')}")
+
+    # 导出「底座 checkpoint 里没有、推理时又必须一致」的参数（典型是 bert.pooler）。
+    # 不导出的话，任何「重新从 adapter 现场合并」的路径都会抽到另一份随机 pooler，
+    # 分类头随之失效（详见 ml/lora_extra.py 的说明）。
+    try:
+        from lora_extra import export_extra_state
+
+        n_extra = export_extra_state(merged if merged is not None else model,
+                                     Path(args.base), out / "adapter")
+        if n_extra:
+            print(f"  额外权重 -> {out / 'adapter' / 'extra_state.safetensors'}（{n_extra} 个张量）")
+    except Exception as e:
+        print(f"  [警告] 额外权重导出失败（不影响本次训练，但 adapter 可能无法独立复现）：{e}")
 
     meta = {
         "base_model": args.base,

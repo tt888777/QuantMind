@@ -19,6 +19,8 @@ if exist "%VENV_PY%" (
 
 rem 国内网络需走 HF 镜像才能下载模型/语料
 set "HF_ENDPOINT=https://hf-mirror.com"
+rem 新版 huggingface_hub 默认走 Xet 协议，hf-mirror 不支持，必须禁用
+set "HF_HUB_DISABLE_XET=1"
 rem 启动即加载情感模型，避免首个请求等待；不需要可改为 0
 set "QUANTMIND_SENTIMENT_WARMUP=1"
 set "PYTHONIOENCODING=utf-8"

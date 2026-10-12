@@ -23,6 +23,7 @@
 ``QUANTMIND_SENTIMENT_STRONG``  强烈标签阈值，默认 0.9；设为 0 则禁用
 """
 
+import json
 import os
 import threading
 from pathlib import Path
@@ -30,11 +31,17 @@ from pathlib import Path
 MODULE_DIR = Path(__file__).resolve().parent          # quantmind/modules
 REPO_ROOT = MODULE_DIR.parent.parent                  # 仓库根目录
 
-# 依次探测：优先 DAPT 版（若已训练），其次默认 LoRA 版
+# 依次探测：优先 DAPT 版（若已训练），其次默认 LoRA 版（合并态），
+# 最后是仓库里自带的 LoRA adapter（需要用底座现场合并，见 _resolve_adapter_base）
 DEFAULT_MODEL_CANDIDATES = [
     REPO_ROOT / "ml" / "models" / "lora_dapt" / "merged",
     REPO_ROOT / "ml" / "models" / "lora_guba" / "merged",
     REPO_ROOT / "ml" / "models" / "lora_guba" / "adapter",
+]
+
+# 底座候选：从仓库内已下载好的目录里找（clone 后先跑 ml/setup_model.py 生成）
+BASE_MODEL_CANDIDATES = [
+    REPO_ROOT / "ml" / "models" / "bert-base-chinese",
 ]
 
 LABEL_ORDER = ("看跌", "看涨", "中性")
@@ -74,6 +81,102 @@ def _looks_like_model_dir(p: Path) -> bool:
     return (has_cfg and has_w) or has_adapter
 
 
+def _looks_like_base_dir(p: Path) -> bool:
+    """是不是一个「完整可加载」的 transformers 模型目录（底座/合并模型）。"""
+    if not p or not p.is_dir():
+        return False
+    has_cfg = (p / "config.json").exists()
+    has_w = (p / "model.safetensors").exists() or (p / "pytorch_model.bin").exists()
+    return has_cfg and has_w
+
+
+def _is_peft_adapter_dir(p: Path) -> bool:
+    """是否只有 LoRA adapter、没有完整权重（需要现场与底座合并）。"""
+    return (p / "adapter_config.json").exists() and not _looks_like_base_dir(p)
+
+
+def _looks_like_local_path(s: str) -> bool:
+    """判断字符串更像本地路径而不是 HF 仓库 id。
+
+    训练时 ``adapter_config.json`` 里写的是 ``models/bert-base-chinese`` 这类
+    相对仓库的路径。若直接当 HF repo id 用，会去联网请求一个不存在的仓库，
+    导致首次请求白等一次网络超时 —— 所以这里要提前识别出来。
+    """
+    if not s:
+        return False
+    if "\\" in s:
+        return True
+    t = s.replace("\\", "/")
+    if t.startswith(("./", "../", "/", "~")):
+        return True
+    if len(t) > 1 and t[1] == ":":           # Windows 盘符，如 C:/...
+        return True
+    return t.startswith(("models/", "ml/", "checkpoints/", "checkpoint/"))
+
+
+def _resolve_adapter_base(adapter_dir: Path):
+    """解析 LoRA adapter 对应的底座模型路径。
+
+    优先级：环境变量 > adapter_config.json 里的 base_model_name_or_path
+    > 仓库内默认底座目录 > 直接返回原始值（当作 HF id，需联网）。
+
+    返回 ``(base, note)``。若 adapter 指向的是本地路径但本地找不到，
+    抛 ``FileNotFoundError`` 并给出可操作的指引（而不是去联网空等）。
+    """
+    env_base = os.environ.get("QUANTMIND_SENTIMENT_BASE_MODEL")
+    if env_base:
+        return env_base, "环境变量 QUANTMIND_SENTIMENT_BASE_MODEL"
+
+    raw = None
+    cfg_file = adapter_dir / "adapter_config.json"
+    try:
+        raw = json.loads(cfg_file.read_text(encoding="utf-8")).get("base_model_name_or_path")
+    except Exception:
+        raw = None
+
+    if raw:
+        p = Path(raw)
+        if p.is_dir():
+            return str(p), "adapter_config 中的绝对路径"
+        # 训练时写的是相对路径（如 models/bert-base-chinese），相对仓库根 / ml / ml/models 各试一次
+        for root in (REPO_ROOT, REPO_ROOT / "ml", REPO_ROOT / "ml" / "models"):
+            cand = (root / raw)
+            if _looks_like_base_dir(cand):
+                return str(cand), "adapter_config 相对路径解析"
+        for cand in BASE_MODEL_CANDIDATES:
+            if _looks_like_base_dir(cand):
+                return str(cand), "仓库内默认底座目录"
+        if _looks_like_local_path(raw):
+            raise FileNotFoundError(
+                f"adapter 指定的底座是本地路径「{raw}」，但本地不存在。"
+                f"请先执行：python ml/setup_model.py（会自动下载底座到 {BASE_MODEL_CANDIDATES[0]}）"
+            )
+
+    for cand in BASE_MODEL_CANDIDATES:
+        if _looks_like_base_dir(cand):
+            return str(cand), "仓库内默认底座目录"
+
+    return (raw or "bert-base-chinese"), "HF 模型 id（需要联网，建议先跑 ml/setup_model.py）"
+
+
+def _build_id2label(config):
+    """从模型 config 取 id→标签映射。
+
+    注意：直接 ``merge_and_unload()`` 出来的模型，其 config 继承自底座
+    ``bert-base-chinese``，``id2label`` 是 ``LABEL_0/1/2`` 这种占位符，
+    ``normalize_label`` 会把它们全判成「中性」。因此这里做一次校验，
+    不可识别时按训练时的固定顺序（看跌/看涨/中性）回填。
+    """
+    raw = getattr(config, "id2label", None) or {}
+    try:
+        mapped = {int(i): normalize_label(lbl) for i, lbl in raw.items()}
+    except Exception:
+        mapped = {}
+    if len(mapped) != len(LABEL_ORDER) or set(mapped.values()) != set(LABEL_ORDER):
+        return {i: LABEL_ORDER[i] for i in range(len(LABEL_ORDER))}
+    return mapped
+
+
 class SentimentModelBackend:
     """BERT+LoRA 情感分类模型的推理封装（线程安全的懒加载单例）。"""
 
@@ -99,6 +202,7 @@ class SentimentModelBackend:
         self._device = None
         self._model_path = None
         self._id2label = {}
+        self._load_note = None
 
     # ------------------------------------------------------------------ 路径
     def resolve_path(self):
@@ -116,12 +220,6 @@ class SentimentModelBackend:
         with self._lock:
             if self._loaded:
                 return True
-            try:
-                import torch
-                from transformers import AutoModelForSequenceClassification, AutoTokenizer
-            except Exception as e:                       # ImportError 及其它加载期异常
-                self._error = f"缺少推理依赖 torch/transformers：{e}"
-                return False
 
             path = self.resolve_path()
             if path is None:
@@ -135,9 +233,36 @@ class SentimentModelBackend:
                     )
                 return False
 
+            # 轻量预检：adapter 场景下先确认底座在不在。
+            # 这一步只读文件系统，**故意放在 import torch 之前** ——
+            # 否则光是导入 torch/transformers 就要十几秒，用户点一下「AI 模型」
+            # 要白等半天才被告知模型没准备好。
+            if _is_peft_adapter_dir(path):
+                try:
+                    _resolve_adapter_base(path)
+                except Exception as e:
+                    self._error = f"模型不可用：{e}"
+                    return False
+
             try:
-                tokenizer = AutoTokenizer.from_pretrained(str(path))
-                model = AutoModelForSequenceClassification.from_pretrained(str(path))
+                import torch
+                from transformers import AutoModelForSequenceClassification, AutoTokenizer
+            except Exception as e:                       # ImportError 及其它加载期异常
+                self._error = f"缺少推理依赖 torch/transformers：{e}"
+                return False
+
+            try:
+                if _is_peft_adapter_dir(path):
+                    tokenizer, model, note = self._load_peft_adapter(
+                        path, torch,
+                        AutoModelForSequenceClassification, AutoTokenizer,
+                    )
+                    self._load_note = note
+                else:
+                    tokenizer = AutoTokenizer.from_pretrained(str(path))
+                    model = AutoModelForSequenceClassification.from_pretrained(str(path))
+                    self._load_note = "完整模型目录"
+
                 model.eval()
 
                 if self._device_pref:
@@ -151,16 +276,43 @@ class SentimentModelBackend:
                 self._model = model
                 self._device = str(device)
                 self._model_path = str(path)
-                self._id2label = {
-                    int(i): normalize_label(lbl)
-                    for i, lbl in getattr(model.config, "id2label", {}).items()
-                }
+                self._id2label = _build_id2label(model.config)
                 self._loaded = True
                 self._error = None
                 return True
             except Exception as e:
                 self._error = f"加载模型失败（{path}）：{e}"
                 return False
+
+    def _load_peft_adapter(self, adapter_dir, torch, AutoModel, AutoTokenizer):
+        """只有 LoRA adapter 时：找底座 → 挂 adapter → 合并成完整模型。
+
+        返回 ``(tokenizer, model, note)``；任何一步失败都抛异常，由调用方降级。
+        """
+        from peft import PeftModel
+
+        base, note = _resolve_adapter_base(adapter_dir)
+
+        # tokenizer：仓库内 adapter 目录自带 tokenizer.json，优先用它，失败再退回底座
+        tokenizer = None
+        for src in (str(adapter_dir), str(base)):
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(src)
+                break
+            except Exception:
+                continue
+        if tokenizer is None:
+            raise RuntimeError(f"tokenizer 加载失败（尝试过 {adapter_dir} 与 {base}）")
+
+        base_model = AutoModel.from_pretrained(
+            str(base),
+            num_labels=len(LABEL_ORDER),
+            id2label={i: v for i, v in enumerate(LABEL_ORDER)},
+            label2id={v: i for i, v in enumerate(LABEL_ORDER)},
+        )
+        model = PeftModel.from_pretrained(base_model, str(adapter_dir))
+        model = model.merge_and_unload()          # 合并后就是普通 BERT，推理更省事
+        return tokenizer, model, f"LoRA adapter + 底座（{note}）"
 
     # ------------------------------------------------------------------ 状态
     @property
@@ -186,6 +338,7 @@ class SentimentModelBackend:
             "available": avail,
             "loaded": self._loaded,
             "model_path": self._model_path,
+            "load_note": self._load_note,
             "device": self._device,
             "max_len": self.max_len,
             "batch_size": self.batch_size,

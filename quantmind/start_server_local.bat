@@ -25,6 +25,8 @@ if not exist "%DB_FILE%" (
 
 set "QUANTMIND_DB_URL=sqlite:///%DB_FILE:\=/%"
 set "HF_ENDPOINT=https://hf-mirror.com"
+rem 新版 huggingface_hub 默认走 Xet 协议，hf-mirror 不支持，必须禁用
+set "HF_HUB_DISABLE_XET=1"
 set "QUANTMIND_SENTIMENT_WARMUP=1"
 set "PYTHONIOENCODING=utf-8"
 

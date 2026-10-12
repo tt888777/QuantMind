@@ -522,7 +522,7 @@ body{
           <span class="engine-label">情感分析引擎</span>
           <div class="engine-switch" id="sentEngineSwitch">
             <button class="eng-btn active" data-engine="keyword">关键词规则</button>
-            <button class="eng-btn" data-engine="model">AI 模型（BERT+LoRA）</button>
+            <button class="eng-btn" data-engine="model">AI 模型（DAPT + 财经新闻 LoRA）</button>
           </div>
           <span class="badge b-gray" id="sentEngineStatus">检测中…</span>
           <span class="eng-fallback" id="sentFallbackTip">模型不可用，已自动回退关键词规则</span>
@@ -783,6 +783,8 @@ let sentimentEngine='keyword';        // 'keyword' | 'model'
 let sentimentModelStatus=null;        // 最近一次引擎状态快照
 let sentimentAnalyzed=false;          // 舆情页是否已分析过一次
 const ENGINE_LABEL={keyword:'关键词规则',model:'AI 模型'};
+/* 线上唯一的 AI 模型：DAPT 领域自适应底座 + FLAME 中文财经新闻三分类 LoRA */
+const MODEL_NAME='DAPT + 财经新闻 LoRA';
 
 /* ============ NAV ============ */
 const navItems=document.querySelectorAll('.nav-item');
@@ -1329,12 +1331,12 @@ function renderEngineStatus(st){
   if(!badge)return;
   if(st&&st.available===true){
     badge.className='badge b-green';
-    badge.textContent=`模型就绪 · ${st.device==='cuda'?'GPU':'CPU'} · ${st.labels.join(' / ')}`;
+    badge.textContent=`${MODEL_NAME} 就绪 · ${st.device==='cuda'?'GPU':'CPU'} · ${st.labels.join(' / ')}`;
     if(note)note.textContent='模型路径 '+((st.model_path||'').split(/[\\/]/).filter(Boolean).slice(-3).join('/'));
     if(tip)tip.classList.remove('on');
   }else if(st&&st.available===false){
     badge.className='badge b-red';
-    badge.textContent='模型不可用';
+    badge.textContent=`${MODEL_NAME} 不可用`;
     if(note)note.textContent=st.error?('原因：'+st.error):'';
     if(tip)tip.classList.toggle('on',sentimentEngine==='model');
   }else{

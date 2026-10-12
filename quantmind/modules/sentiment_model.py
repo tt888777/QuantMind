@@ -16,11 +16,22 @@
 
 配置（环境变量，均可选）
 ------------------------
-``QUANTMIND_SENTIMENT_MODEL``   模型目录，默认 ``<repo>/ml/models/lora_guba/merged``
+``QUANTMIND_SENTIMENT_MODEL``   模型目录，默认 ``<repo>/ml/models/lora_dapt_flame/merged``
+``QUANTMIND_SENTIMENT_BASE_MODEL`` 适配 adapter 场景的底座目录，默认 ``<repo>/ml/models/dapt_bert``
 ``QUANTMIND_SENTIMENT_DEVICE``  ``cuda`` / ``cpu``，默认自动探测
 ``QUANTMIND_SENTIMENT_MAX_LEN`` 最大 token 长度，默认 64（该数据集标题最长 79 字）
 ``QUANTMIND_SENTIMENT_BATCH``   推理批大小，默认 32
 ``QUANTMIND_SENTIMENT_STRONG``  强烈标签阈值，默认 0.9；设为 0 则禁用
+
+模型版本说明（重要）
+--------------------
+本项目**只保留一个线上 AI 模型**：``lora_dapt_flame``
+= ``dapt_bert`` 领域自适应底座 + FLAME 中文财经新闻三分类 LoRA。
+
+选它的原因：它是全项目在**新闻域**上表现最好的版本（Acc 0.8290 / Macro-F1 0.8075）。
+⚠️ **它不擅长股吧口语**：在股吧测试集上 Acc 仅 0.5592，明显低于股吧域模型的 0.7460。
+若你的业务是股吧舆情，请把 ``QUANTMIND_SENTIMENT_MODEL`` 指回
+``ml/models/lora_guba/merged``（仓库里仍保留该 adapter），详见 README「模型选择」。
 """
 
 import json
@@ -31,17 +42,19 @@ from pathlib import Path
 MODULE_DIR = Path(__file__).resolve().parent          # quantmind/modules
 REPO_ROOT = MODULE_DIR.parent.parent                  # 仓库根目录
 
-# 依次探测：优先 DAPT 版（若已训练），其次默认 LoRA 版（合并态），
-# 最后是仓库里自带的 LoRA adapter（需要用底座现场合并，见 _resolve_adapter_base）
+# 线上唯一使用的模型：DAPT 底座 + 财经新闻 LoRA。
+# 优先「已合并」的完整模型目录（加载快、无依赖），其次仓库自带的 LoRA adapter
+# （需配合 dapt_bert 底座现场合并，见 _resolve_adapter_base）。
 DEFAULT_MODEL_CANDIDATES = [
-    REPO_ROOT / "ml" / "models" / "lora_dapt" / "merged",
-    REPO_ROOT / "ml" / "models" / "lora_guba" / "merged",
-    REPO_ROOT / "ml" / "models" / "lora_guba" / "adapter",
+    REPO_ROOT / "ml" / "models" / "lora_dapt_flame" / "merged",
+    REPO_ROOT / "ml" / "models" / "lora_dapt_flame" / "adapter",
 ]
 
-# 底座候选：从仓库内已下载好的目录里找（clone 后先跑 ml/setup_model.py 生成）
+# adapter 的底座：必须是训练时用的 dapt_bert，**不能用 bert-base-chinese 顶替**
+# （否则会把 LoRA 权重挂到错误的底座上，静默产出一个不正确的模型）。
+# 故意只列 dapt_bert：缺失时会抛明确错误并回退关键词，而不是悄悄用错底座。
 BASE_MODEL_CANDIDATES = [
-    REPO_ROOT / "ml" / "models" / "bert-base-chinese",
+    REPO_ROOT / "ml" / "models" / "dapt_bert",
 ]
 
 LABEL_ORDER = ("看跌", "看涨", "中性")
@@ -149,7 +162,10 @@ def _resolve_adapter_base(adapter_dir: Path):
         if _looks_like_local_path(raw):
             raise FileNotFoundError(
                 f"adapter 指定的底座是本地路径「{raw}」，但本地不存在。"
-                f"请先执行：python ml/setup_model.py（会自动下载底座到 {BASE_MODEL_CANDIDATES[0]}）"
+                f"该 adapter 必须挂在 DAPT 底座上，不能换成 bert-base-chinese。"
+                f"二选一：① 从 HF 拉取已合并的完整模型："
+                f"python ml/setup_model.py --from-hf <你的HF仓库>；"
+                f"② 本地重建底座：python ml/train_dapt.py（约 1 小时）"
             )
 
     for cand in BASE_MODEL_CANDIDATES:
@@ -312,7 +328,26 @@ class SentimentModelBackend:
         )
         model = PeftModel.from_pretrained(base_model, str(adapter_dir))
         model = model.merge_and_unload()          # 合并后就是普通 BERT，推理更省事
-        return tokenizer, model, f"LoRA adapter + 底座（{note}）"
+
+        # 回填「底座 checkpoint 里没有、训练时又冻结未训」的参数（典型是 bert.pooler）。
+        # 缺了它，分类头赖以工作的特征映射就换了一份随机初始化，输出会退化成近似均匀分布。
+        # 详见 ml/lora_extra.py 与 ml/export_extra_state.py。
+        note = f"LoRA adapter + 底座（{note}）"
+        extra_file = Path(adapter_dir) / "extra_state.safetensors"
+        if extra_file.is_file():
+            try:
+                from safetensors.torch import load_file
+
+                extra = load_file(str(extra_file), device="cpu")
+                if extra:
+                    model.load_state_dict(extra, strict=False)
+                    note += f" + 额外权重 {len(extra)} 个"
+            except Exception as e:
+                note += f"（额外权重回填失败：{e}）"
+        else:
+            note += "；⚠️ 缺少 extra_state.safetensors，若底座不含 pooler 则结果可能不可靠"
+
+        return tokenizer, model, note
 
     # ------------------------------------------------------------------ 状态
     @property

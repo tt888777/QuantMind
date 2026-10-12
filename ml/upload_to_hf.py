@@ -17,14 +17,14 @@
     2. 设置环境变量：`set HF_TOKEN=hf_xxx`（Windows）或 `export HF_TOKEN=hf_xxx`
 
 用法：
-    python upload_to_hf.py --repo 你的用户名/quantmind-sentiment-dapt-flame --check
-    python upload_to_hf.py --repo 你的用户名/quantmind-sentiment-dapt-flame
-    python upload_to_hf.py --repo 你的用户名/quantmind-sentiment-dapt-flame --include-dapt-base
-    python upload_to_hf.py --repo 你的用户名/quantmind-sentiment-dapt-flame --private
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --check
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --gh-owner Jwwws
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --include-dapt-base --gh-owner Jwwws
+    python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --private
 
 上传完成后，其他人在全新电脑上执行：
 
-    python setup_model.py --from-hf 你的用户名/quantmind-sentiment-dapt-flame
+    python setup_model.py --from-hf Roeyyyyyy/quantmind-sentiment-dapt-flame
 """
 
 import argparse
@@ -68,6 +68,13 @@ datasets:
 metrics:
   - accuracy
   - f1
+widget:
+  - text: "公司发布业绩预告，净利润同比增长80%"
+    example_title: "业绩预增（看涨）"
+  - text: "大股东拟减持不超过3%股份，股价承压"
+    example_title: "减持利空（看跌）"
+  - text: "公司召开股东大会审议年度报告"
+    example_title: "中性公告"
 ---
 
 # QuantMind 中文金融情感三分类（DAPT + 财经新闻 LoRA）
@@ -261,7 +268,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--repo", required=True, metavar="用户名/仓库名",
-                    help="目标 HF 仓库，如 Jwwws/quantmind-sentiment-dapt-flame")
+                    help="目标 HF 仓库，如 Roeyyyyyy/quantmind-sentiment-dapt-flame")
     ap.add_argument("--token", default=None,
                     help="HF write token；默认读环境变量 HF_TOKEN / HUGGINGFACE_HUB_TOKEN")
     ap.add_argument("--endpoint", default=OFFICIAL_ENDPOINT,
@@ -332,6 +339,10 @@ def main():
     repo_id = args.repo.strip()
     owner = repo_id.split("/")[0] if "/" in repo_id else ""
     gh_owner = args.gh_owner or owner
+    if not args.gh_owner:
+        print(f"\n[提示] 未指定 --gh-owner，Model Card 的 GitHub 链接将指向 "
+              f"https://github.com/{gh_owner}/QuantMind")
+        print("       如果 HF 账号与 GitHub 账号不同名，请加：--gh-owner 你的GitHub用户名")
 
     try:
         login(token=token, add_to_git_credential=False)

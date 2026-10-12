@@ -129,6 +129,10 @@ python setup_model.py --from-hf <用户名>/<仓库名>
 
 约 390MB。下载完会把仓库地址写进 `ml/model_source.json`，之后直接 `python setup_model.py` 即可复用。
 
+> 该 HF 仓库里还有 `adapter/` 与 `dapt_base/` 两个子目录（合计再约 410MB）。
+> `--from-hf` **只取根目录的合并模型**、自动跳过这两个子目录，所以实际只下载 390MB。
+> 需要它们时见 [十二](#十二发布模型到-hugging-face) 的说明。
+
 **方案 ② 用仓库自带 adapter 现场合并**
 
 适合拿不到 HF 的情况，但**前提是已有 DAPT 底座** `ml/models/dapt_bert/`  

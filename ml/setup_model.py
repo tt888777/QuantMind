@@ -59,6 +59,9 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 WEIGHT_FILES = ["model.safetensors", "pytorch_model.bin"]
 
+# 仓库里这些子目录不属于「合并模型」，下载与兜底提升时都要跳过
+SKIP_SUBDIRS = {"adapter", "dapt_base", "merged", "_ckpt"}
+
 
 def human(n):
     for unit in ("B", "KB", "MB", "GB"):
@@ -125,11 +128,17 @@ def download_from_hf(repo: str, endpoint: str, force: bool) -> bool:
     try:
         from huggingface_hub import snapshot_download
 
+        # 只取仓库根目录的模型文件。
+        # 本仓库根目录 = 合并模型，另有两个子目录 adapter/ 与 dapt_base/（合计再 410MB）
+        # 是给「继续微调」和「复现」用的，下载合并模型时不需要，必须排除。
         snapshot_download(
             repo_id=repo,
             local_dir=str(MERGED_DIR),
             endpoint=endpoint,
-            ignore_patterns=["*.bin", "*.h5", "*.msgpack", "*.onnx", "*.ot", "*.pt"],
+            ignore_patterns=[
+                "*.bin", "*.h5", "*.msgpack", "*.onnx", "*.ot", "*.pt",
+                "adapter/*", "dapt_base/*", "merged/*", "_ckpt/*",
+            ],
             max_workers=4,
         )
     except Exception as e:
@@ -140,15 +149,21 @@ def download_from_hf(repo: str, endpoint: str, force: bool) -> bool:
                   "② 用 --rebuild 在本机用 adapter + 底座现场合并。")
             return False
 
-    # 有些仓库把模型放在子目录里，做一次兜底查找
+    # 有些仓库把模型放在子目录里，做一次兜底查找。
+    # ⚠️ 必须排除 adapter/ 与 dapt_base/：dapt_base 是 MLM 底座，
+    #    它同样有 config.json + 权重 + 分词器，会被 is_merged_ok() 误判为「完整模型」，
+    #    一旦被提升上来当作分类模型用，会静默算出错误结果。
     if not is_merged_ok(MERGED_DIR):
-        for cfg in MERGED_DIR.rglob("config.json"):
+        for cfg in sorted(MERGED_DIR.rglob("config.json")):
             cand = cfg.parent
-            if is_merged_ok(cand):
-                print(f"       在子目录中找到模型：{cand.relative_to(MERGED_DIR)}，已提升到根目录")
-                for f in cand.iterdir():
-                    shutil.move(str(f), str(MERGED_DIR / f.name))
-                break
+            if cand == MERGED_DIR or cand.name in SKIP_SUBDIRS:
+                continue
+            if not is_merged_ok(cand):
+                continue
+            print(f"       在子目录中找到模型：{cand.relative_to(MERGED_DIR)}，已提升到根目录")
+            for f in cand.iterdir():
+                shutil.move(str(f), str(MERGED_DIR / f.name))
+            break
 
     if not is_merged_ok(MERGED_DIR):
         print("[失败] 下载完成但模型目录不完整（缺 config.json / 权重 / 分词器）")
@@ -179,7 +194,12 @@ def _download_repo_urllib(repo: str, endpoint: str) -> bool:
         return False
 
     skip = (".h5", ".msgpack", ".onnx", ".ot", ".bin")
-    files = [f for f in files if not f.lower().endswith(skip) and not f.startswith(("flax_", "tf_"))]
+    files = [
+        f for f in files
+        if not f.lower().endswith(skip)
+        and not f.startswith(("flax_", "tf_"))
+        and f.split("/")[0] not in SKIP_SUBDIRS   # 排除 adapter/、dapt_base/ 等子目录
+    ]
 
     for f in files:
         dst = MERGED_DIR / f

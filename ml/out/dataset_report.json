@@ -1,0 +1,66 @@
+{
+  "repo": "HikasaHana/eastmoney_guba_title",
+  "source": "https://hf-mirror.com",
+  "train": {
+    "rows": 8516,
+    "label_dist": {
+      "negative(看跌)": {
+        "count": 2529,
+        "pct": 29.7
+      },
+      "positive(看涨)": {
+        "count": 2406,
+        "pct": 28.3
+      },
+      "neutral(中性)": {
+        "count": 3581,
+        "pct": 42.1
+      }
+    },
+    "bad_label_rows": 0,
+    "illegal_label_values": [],
+    "empty_title_rows": 0,
+    "length": {
+      "min": 1,
+      "p25": 11,
+      "median": 18,
+      "p75": 30,
+      "p95": 40,
+      "max": 79
+    }
+  },
+  "test": {
+    "rows": 2130,
+    "label_dist": {
+      "negative(看跌)": {
+        "count": 641,
+        "pct": 30.1
+      },
+      "positive(看涨)": {
+        "count": 618,
+        "pct": 29.0
+      },
+      "neutral(中性)": {
+        "count": 871,
+        "pct": 40.9
+      }
+    },
+    "bad_label_rows": 0,
+    "illegal_label_values": [],
+    "empty_title_rows": 0,
+    "length": {
+      "min": 1,
+      "p25": 11,
+      "median": 18,
+      "p75": 30,
+      "p95": 40,
+      "max": 61
+    }
+  },
+  "quality": {
+    "train_duplicate_titles": 0,
+    "test_duplicate_titles": 0,
+    "train_test_overlap_titles": 0,
+    "overlap_label_conflicts": 0
+  }
+}

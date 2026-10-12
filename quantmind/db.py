@@ -2,9 +2,20 @@ from sqlalchemy import create_engine, Column, String, Date, DateTime, DECIMAL, I
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config import DB_URL
 
-engine = create_engine(DB_URL, pool_recycle=3600, echo=False)
+_engine_kwargs = {"echo": False}
+if DB_URL.startswith("sqlite"):
+    # SQLite 用于本地无 MySQL 时的演示：Flask 是多线程的，必须放开同线程检查
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    _engine_kwargs["pool_recycle"] = 3600
+
+engine = create_engine(DB_URL, **_engine_kwargs)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
+
+# SQLite 只把 INTEGER PRIMARY KEY 视为自增主键，BIGINT 不会自增；
+# 用 with_variant 让同一份模型在 MySQL 上仍保持 BIGINT。
+PK_TYPE = BigInteger().with_variant(Integer, "sqlite")
 
 
 class StockBasic(Base):
@@ -17,7 +28,7 @@ class StockBasic(Base):
 
 class QuotationDaily(Base):
     __tablename__ = "quotation_daily"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
     stock_code = Column(String(16), nullable=False)
     trade_date = Column(Date, nullable=False)
     open = Column(DECIMAL(12, 4))
@@ -31,7 +42,7 @@ class QuotationDaily(Base):
 
 class TechnicalIndicator(Base):
     __tablename__ = "technical_indicator"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
     stock_code = Column(String(16), nullable=False)
     trade_date = Column(Date, nullable=False)
     ma5 = Column(DECIMAL(12, 4))
@@ -46,7 +57,7 @@ class TechnicalIndicator(Base):
 
 class Strategy(Base):
     __tablename__ = "strategy"
-    strategy_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    strategy_id = Column(PK_TYPE, primary_key=True, autoincrement=True)
     strategy_name = Column(String(128), nullable=False)
     strategy_type = Column(String(32), nullable=False)
     stock_code = Column(String(16), nullable=False)
@@ -56,7 +67,7 @@ class Strategy(Base):
 
 class BacktestTask(Base):
     __tablename__ = "backtest_task"
-    task_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    task_id = Column(PK_TYPE, primary_key=True, autoincrement=True)
     strategy_id = Column(BigInteger, nullable=False)
     stock_code = Column(String(16), nullable=False)
     start_date = Column(Date, nullable=False)
@@ -66,7 +77,7 @@ class BacktestTask(Base):
 
 class BacktestMetric(Base):
     __tablename__ = "backtest_metric"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
     task_id = Column(BigInteger, nullable=False)
     total_return = Column(DECIMAL(8, 4))
     annual_return = Column(DECIMAL(8, 4))

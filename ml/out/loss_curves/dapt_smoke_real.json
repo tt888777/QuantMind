@@ -1,0 +1,85 @@
+{
+  "config": {
+    "model": "models/bert-base-chinese",
+    "corpus": "data/guba_title_all.csv",
+    "text_col": "title",
+    "hf_column": "text",
+    "hf_split": "train",
+    "max_samples": 200000,
+    "out": "models/dapt_smoke_real",
+    "seq_len": 128,
+    "batch_size": 16,
+    "grad_accum": 2,
+    "lr": 5e-05,
+    "epochs": 1.0,
+    "fp16": true,
+    "smoke": 0
+  },
+  "final_batch": 16,
+  "history": [
+    {
+      "step": 20,
+      "loss": 5.1176189422607425
+    },
+    {
+      "step": 40,
+      "loss": 4.889977264404297
+    },
+    {
+      "step": 60,
+      "loss": 4.1800189971923825
+    },
+    {
+      "step": 80,
+      "loss": 4.311420440673828
+    },
+    {
+      "step": 100,
+      "loss": 4.43043212890625
+    },
+    {
+      "step": 120,
+      "loss": 4.307304000854492
+    },
+    {
+      "step": 140,
+      "loss": 3.9844261169433595
+    },
+    {
+      "step": 160,
+      "loss": 4.090858078002929
+    },
+    {
+      "step": 180,
+      "loss": 4.439152526855469
+    },
+    {
+      "step": 200,
+      "loss": 4.183930587768555
+    },
+    {
+      "step": 220,
+      "loss": 4.08057746887207
+    },
+    {
+      "step": 240,
+      "loss": 3.9107643127441407
+    },
+    {
+      "step": 260,
+      "loss": 4.1638130187988285
+    },
+    {
+      "step": 280,
+      "loss": 3.8441734313964844
+    },
+    {
+      "step": 300,
+      "loss": 4.044744873046875
+    },
+    {
+      "step": 320,
+      "loss": 3.680129623413086
+    }
+  ]
+}

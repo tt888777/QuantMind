@@ -1,0 +1,24 @@
+{
+  "method": "keyword_rule (quantmind/modules/sentiment.py:analyze_sentiment)",
+  "test_rows": 2130,
+  "accuracy": 0.4545,
+  "macro_f1": 0.3847,
+  "report": "              precision    recall  f1-score   support\n\n negative/看跌      0.476     0.259     0.335       641\n positive/看涨      0.562     0.162     0.251       618\n  neutral/中性      0.438     0.806     0.568       871\n\n    accuracy                          0.454      2130\n   macro avg      0.492     0.409     0.385      2130\nweighted avg      0.485     0.454     0.406      2130\n",
+  "raw_label_dist": {
+    "中性": 1603,
+    "看跌": 331,
+    "中性偏空": 18,
+    "看涨": 170,
+    "强烈看涨": 8
+  },
+  "pred_class_dist": {
+    "negative/看跌": 349,
+    "positive/看涨": 178,
+    "neutral/中性": 1603
+  },
+  "true_class_dist": {
+    "negative/看跌": 641,
+    "positive/看涨": 618,
+    "neutral/中性": 871
+  }
+}

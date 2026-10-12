@@ -1,0 +1,101 @@
+{
+  "config": {
+    "model": "models/bert-base-chinese",
+    "corpus": "data/guba_title_all.csv",
+    "text_col": "title",
+    "hf_column": "text",
+    "hf_split": "train",
+    "max_samples": 200000,
+    "out": "C:\\Users\\Jww\\source\\repos\\QuantMind\\ml\\models\\dapt_bert",
+    "seq_len": 128,
+    "batch_size": 16,
+    "grad_accum": 2,
+    "lr": 5e-05,
+    "epochs": 1,
+    "fp16": true,
+    "smoke": 20
+  },
+  "final_batch": 16,
+  "history": [
+    {
+      "step": 1,
+      "loss": 4.753817558288574
+    },
+    {
+      "step": 2,
+      "loss": 3.8868165016174316
+    },
+    {
+      "step": 3,
+      "loss": 4.693243980407715
+    },
+    {
+      "step": 4,
+      "loss": 4.916377544403076
+    },
+    {
+      "step": 5,
+      "loss": 5.018101215362549
+    },
+    {
+      "step": 6,
+      "loss": 5.9737396240234375
+    },
+    {
+      "step": 7,
+      "loss": 6.142632484436035
+    },
+    {
+      "step": 8,
+      "loss": 5.34944486618042
+    },
+    {
+      "step": 9,
+      "loss": 5.810423374176025
+    },
+    {
+      "step": 10,
+      "loss": 6.264273166656494
+    },
+    {
+      "step": 11,
+      "loss": 4.874738693237305
+    },
+    {
+      "step": 12,
+      "loss": 5.5543413162231445
+    },
+    {
+      "step": 13,
+      "loss": 6.137816429138184
+    },
+    {
+      "step": 14,
+      "loss": 4.592089653015137
+    },
+    {
+      "step": 15,
+      "loss": 6.384734630584717
+    },
+    {
+      "step": 16,
+      "loss": 4.705126762390137
+    },
+    {
+      "step": 17,
+      "loss": 5.670468330383301
+    },
+    {
+      "step": 18,
+      "loss": 4.397348403930664
+    },
+    {
+      "step": 19,
+      "loss": 5.081316947937012
+    },
+    {
+      "step": 20,
+      "loss": 5.421405792236328
+    }
+  ]
+}

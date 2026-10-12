@@ -1,0 +1,16 @@
+# 情感分析模型（BERT + LoRA）的推理依赖
+# =====================================================
+# 只有当 /api/sentiment_analyze 传入 engine=model（或 auto 且模型存在）时才需要。
+# 装不上也不影响系统运行 —— 会自动回退到关键词规则引擎。
+#
+# 注意：torch 建议按本机 CUDA 版本单独安装，别直接 pip install torch：
+#   CPU   ：pip install torch
+#   CUDA 12.6（本机 RTX 3060 实测可用）：
+#     pip install torch==2.9.1+cu126 --index-url https://download.pytorch.org/whl/cu126
+#
+# 国内网络请加镜像：-i https://pypi.tuna.tsinghua.edu.cn/simple
+
+transformers>=4.40
+peft>=0.10
+accelerate>=0.30
+scikit-learn>=1.3

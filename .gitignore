@@ -23,3 +23,30 @@ quantmind/run_web.bat
 *.exe
 ER*.png
 ~$*
+
+# ================= 本地环境与工具缓存 =================
+.vs/
+.idea/
+.vscode/
+.workbuddy/
+
+# ================= 本地演示数据库（SQLite） =================
+quantmind/quantmind_local.db
+*.sqlite
+*.sqlite3
+
+# ================= ML 训练环境（不要提交） =================
+ml/.venv/
+ml/__pycache__/
+
+# ================= 模型权重（体积过大，用脚本重新生成） =================
+# bert-base-chinese 底座 ~411MB：从 hf-mirror 重新下载
+# lora_guba/merged 合并模型 ~391MB：train_lora.py --merge 重新导出
+# 说明：LoRA adapter（~1.7MB）是训练产物，体积小，**要提交**
+ml/models/bert-base-chinese/
+ml/models/lora_guba/merged/
+ml/models/lora_guba/_ckpt/
+ml/models/lora_dapt/
+*.ckpt
+*.pt
+*.bin

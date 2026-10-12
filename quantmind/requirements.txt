@@ -1,3 +1,5 @@
+# 基础 Web 依赖（Flask 应用本体）
+# 情感分析模型相关依赖（torch / transformers / peft）见 requirements-ml.txt
 flask>=3.0
 sqlalchemy>=2.0
 pandas

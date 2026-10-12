@@ -193,6 +193,27 @@ body{
 .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--indigo),var(--purple));border-radius:4px;transition:width .4s}
 .scroll-y{overflow-y:auto}
 .tag-ai{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(168,85,247,.2));color:#c7b8ff;border:1px solid rgba(99,102,241,.25)}
+
+/* engine switch */
+.engine-bar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;
+  border:1px solid var(--border);border-radius:12px;background:var(--surface);
+}
+.engine-label{font-size:11.5px;color:var(--muted);letter-spacing:.02em;white-space:nowrap}
+.engine-switch{display:inline-flex;padding:2px;border-radius:9px;background:var(--surface-3);border:1px solid var(--border);flex-shrink:0}
+.eng-btn{
+  padding:6px 14px;border:none;border-radius:7px;background:transparent;color:var(--muted);
+  font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.eng-btn:hover{color:var(--text)}
+.eng-btn.active{background:linear-gradient(135deg,var(--indigo),#7c6ef5);color:#fff;box-shadow:0 0 12px var(--glow-indigo)}
+.engine-switch[data-busy="1"] .eng-btn{pointer-events:none;opacity:.65}
+.engine-bar .hint{margin-top:0;margin-left:auto;text-align:right}
+.eng-fallback{
+  display:none;align-items:center;gap:6px;font-size:11.5px;color:var(--amber);
+  padding:5px 10px;border:1px solid rgba(245,158,11,.3);border-radius:8px;background:rgba(245,158,11,.08);
+}
+.eng-fallback.on{display:inline-flex}
 ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.16)}
 </style>
 </head>
@@ -497,6 +518,17 @@ body{
         <div class="page-title">AI 智能体舆情决策</div>
         <div class="page-desc">采集财经新闻/股吧舆情 · AI 情感分析与热点事件识别 · 情绪特征融合进量化策略（US-006 / US-007 / US-008）</div>
 
+        <div class="engine-bar">
+          <span class="engine-label">情感分析引擎</span>
+          <div class="engine-switch" id="sentEngineSwitch">
+            <button class="eng-btn active" data-engine="keyword">关键词规则</button>
+            <button class="eng-btn" data-engine="model">AI 模型（BERT+LoRA）</button>
+          </div>
+          <span class="badge b-gray" id="sentEngineStatus">检测中…</span>
+          <span class="eng-fallback" id="sentFallbackTip">模型不可用，已自动回退关键词规则</span>
+          <span class="hint" id="sentEngineNote"></span>
+        </div>
+
         <div class="bento" style="margin-bottom:16px">
           <div class="card">
             <div class="section-title">舆情采集任务 <span class="tag">US-006</span></div>
@@ -746,6 +778,12 @@ body{
 </div>
 
 <script>
+/* ============ 情感分析引擎（全局状态，默认与原行为一致=关键词规则） ============ */
+let sentimentEngine='keyword';        // 'keyword' | 'model'
+let sentimentModelStatus=null;        // 最近一次引擎状态快照
+let sentimentAnalyzed=false;          // 舆情页是否已分析过一次
+const ENGINE_LABEL={keyword:'关键词规则',model:'AI 模型'};
+
 /* ============ NAV ============ */
 const navItems=document.querySelectorAll('.nav-item');
 const views=document.querySelectorAll('.view');
@@ -925,7 +963,7 @@ async function loadDashboard(){
             const dsi=document.getElementById('dashSentIndex');
             if(dsi)dsi.innerHTML=sent.index+'<span class="u">/100</span>';
             const dsinfo=document.getElementById('dashSentInfo');
-            if(dsinfo){dsinfo.textContent=`${sent.index>55?'偏乐观':'偏悲观'} · AI研判 ${sent.results.length}条舆情`;dsinfo.className=sent.index>55?'delta up':'delta down'}
+            if(dsinfo){dsinfo.textContent=`${sent.index>55?'偏乐观':'偏悲观'} · ${ENGINE_LABEL[sent.engine]||'关键词规则'}研判 ${sent.results.length}条舆情`;dsinfo.className=sent.index>55?'delta up':'delta down'}
           }
         }catch(e){}
       }
@@ -974,7 +1012,10 @@ function refreshActivityTable(){
 }
 
 async function callAPI(url,body){
-  const r=await fetch(API+url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  let payload=body||{};
+  /* 情感分析统一走当前选定的引擎（keyword / model），模型不可用时后端自动回退 */
+  if(url==='/sentiment_analyze'||url==='/pipeline')payload=Object.assign({},payload,{engine:sentimentEngine});
+  const r=await fetch(API+url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   return r.json();
 }
 function setStatus(id,msg,color){
@@ -1279,6 +1320,71 @@ if(runPipe)runPipe.addEventListener('click',async()=>{
   }catch(e){logPipeline('w','执行出错: '+e);logActivity('分析流水线','执行出错：'+e,'fail')}finally{runPipe.disabled=false}
 });
 
+/* --- 舆情页：情感引擎切换 --- */
+function renderEngineStatus(st){
+  sentimentModelStatus=st||null;
+  const badge=document.getElementById('sentEngineStatus');
+  const note=document.getElementById('sentEngineNote');
+  const tip=document.getElementById('sentFallbackTip');
+  if(!badge)return;
+  if(st&&st.available===true){
+    badge.className='badge b-green';
+    badge.textContent=`模型就绪 · ${st.device==='cuda'?'GPU':'CPU'} · ${st.labels.join(' / ')}`;
+    if(note)note.textContent='模型路径 '+((st.model_path||'').split(/[\\/]/).filter(Boolean).slice(-3).join('/'));
+    if(tip)tip.classList.remove('on');
+  }else if(st&&st.available===false){
+    badge.className='badge b-red';
+    badge.textContent='模型不可用';
+    if(note)note.textContent=st.error?('原因：'+st.error):'';
+    if(tip)tip.classList.toggle('on',sentimentEngine==='model');
+  }else{
+    badge.className='badge b-amber';
+    badge.textContent='模型未加载（切换后自动加载）';
+    if(note)note.textContent='';
+    if(tip)tip.classList.remove('on');
+  }
+}
+async function refreshEngineStatus(probe){
+  try{
+    const st=await callAPI('/sentiment_engine_status',{probe:!!probe});
+    renderEngineStatus(st);
+    return st;
+  }catch(e){renderEngineStatus(null);return null}
+}
+
+const engSwitch=document.getElementById('sentEngineSwitch');
+const engBtns=engSwitch?engSwitch.querySelectorAll('.eng-btn'):[];
+engBtns.forEach(b=>b.addEventListener('click',async()=>{
+  const target=b.dataset.engine;
+  if(b.classList.contains('active')||engSwitch.dataset.busy==='1')return;
+  engBtns.forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  sentimentEngine=target;
+  logActivity('舆情决策',`情感分析引擎切换为「${ENGINE_LABEL[target]}」`,'info');
+
+  if(target==='model'){
+    engSwitch.dataset.busy='1';
+    const note=document.getElementById('sentEngineNote');
+    if(note)note.textContent='正在加载模型…';
+    const st=await refreshEngineStatus(true);
+    engSwitch.dataset.busy='0';
+    if(st&&!st.available){
+      logActivity('舆情决策','模型不可用，分析将自动回退关键词规则','fail');
+    }
+  }else{
+    refreshEngineStatus(false);
+    const tip=document.getElementById('sentFallbackTip');
+    if(tip)tip.classList.remove('on');
+  }
+
+  /* 已分析过则自动重跑，方便当场对比两种引擎的结果差异 */
+  if(sentimentAnalyzed&&document.getElementById('btnSentAnalyze'))document.getElementById('btnSentAnalyze').click();
+  else chartSentIndex();
+}));
+
+/* 进入舆情页时刷新一次引擎状态（probe=false，不触发加载） */
+refreshEngineStatus(false);
+
 /* --- 舆情页：采集舆情 --- */
 const btnSentCollect=document.getElementById('btnSentCollect');
 if(btnSentCollect)btnSentCollect.addEventListener('click',async()=>{
@@ -1314,8 +1420,13 @@ if(btnSentAnalyze)btnSentAnalyze.addEventListener('click',async()=>{
   try{
     const r=await callAPI('/sentiment_analyze',{stock_code:currentStock});
     if(r.ok){
+      sentimentAnalyzed=true;
+      const usedEngine=r.engine||'keyword';
+      const fellBack=(sentimentEngine==='model'&&usedEngine!=='model');
       const tag=document.getElementById('sentAnalyzeTag');
-      if(tag)tag.textContent='US-007 · '+r.results.length+' 条';
+      if(tag)tag.textContent=`US-007 · ${r.results.length} 条 · ${ENGINE_LABEL[usedEngine]||usedEngine}`;
+      const tip=document.getElementById('sentFallbackTip');
+      if(tip)tip.classList.toggle('on',fellBack);
       const idxVal=document.getElementById('sentIndexVal');
       if(idxVal)idxVal.innerHTML=r.index+'<span class="u">/100</span>';
       const idxDelta=document.getElementById('sentIndexDelta');
@@ -1352,7 +1463,7 @@ if(btnSentAnalyze)btnSentAnalyze.addEventListener('click',async()=>{
         });
       }
       btnSentAnalyze.textContent='AI情感分析 ✓';
-      logActivity('舆情决策',`AI情感分析 ${currentStock}：情绪指数${r.index}/100 看涨${r.pos_pct}% 看跌${r.neg_pct}% ${r.results.length}条新闻`,'ok');
+      logActivity('舆情决策',`AI情感分析 ${currentStock}（${ENGINE_LABEL[usedEngine]||usedEngine}）：情绪指数${r.index}/100 看涨${r.pos_pct}% 看跌${r.neg_pct}% ${r.results.length}条新闻`,'ok');
       setTimeout(()=>btnSentAnalyze.textContent='AI情感分析',2000);
     }else{
       btnSentAnalyze.textContent='AI情感分析 ✗';

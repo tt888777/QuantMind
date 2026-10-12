@@ -10,6 +10,25 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+# 可插拔的模型后端（torch/transformers 缺失或模型不存在时自动降级为关键词规则）
+try:
+    from .sentiment_model import get_backend
+except ImportError:                                  # 直接以脚本方式运行本文件时
+    try:
+        from sentiment_model import get_backend
+    except ImportError:
+        def get_backend():
+            class _Unavailable:
+                available = False
+
+                def status(self):
+                    return {'available': False, 'engine': 'keyword',
+                            'error': 'sentiment_model 模块不可用'}
+
+                def predict(self, titles):
+                    return None
+            return _Unavailable()
+
 POSITIVE_KEYWORDS = [
     '超预期', '增长', '利好', '上涨', '突破', '创新高', '加仓', '增持', '回购',
     '盈利', '营收增', '净利增', '景气', '回暖', '放量', '走强', '看好', '买入',
@@ -279,19 +298,59 @@ def collect_sentiment(stock_code):
     }
 
 
-def analyze_sentiments(stock_code, news_list):
+def classify_titles(titles, engine='keyword'):
+    """批量判定标题情感。
+
+    engine:
+      * ``'keyword'`` —— 仅用关键词规则（原行为，默认）
+      * ``'model'``   —— 用 BERT+LoRA 模型；**模型不可用时自动回退关键词**
+      * ``'auto'``    —— 有模型就用模型，否则用关键词
+
+    返回 ``(preds, backend)``：
+      * ``preds``   —— ``[{'label': str, 'confidence': float, 'probs': dict|None}]``
+      * ``backend`` —— 实际生效的引擎，``'model'`` 或 ``'keyword'``
+    """
+    titles = [str(t or '') for t in titles]
+
+    if engine in ('model', 'auto'):
+        backend = get_backend()
+        if backend.available:
+            preds = backend.predict(titles)
+            if preds is not None and len(preds) == len(titles):
+                return [
+                    {'label': p['label'],
+                     'confidence': round(float(p['confidence']), 4),
+                     'probs': p.get('probs')}
+                    for p in preds
+                ], 'model'
+
+    preds = []
+    for t in titles:
+        label, conf = analyze_sentiment(t)
+        preds.append({'label': label, 'confidence': round(float(conf), 4), 'probs': None})
+    return preds, 'keyword'
+
+
+def analyze_sentiments(stock_code, news_list, engine='keyword'):
+    """舆情聚合分析。
+
+    ``engine`` 语义同 :func:`classify_titles`；返回结构保持向后兼容，
+    仅额外增加 ``engine`` 与 ``model_status`` 两个字段。
+    """
+    titles = [n.get('title', '') for n in news_list]
+    preds, backend = classify_titles(titles, engine=engine)
+
     results = []
-    for n in news_list:
+    for n, p in zip(news_list, preds):
         title = n.get('title', '')
-        source = n.get('source', '未知')
-        sentiment, confidence = analyze_sentiment(title)
         event_name, event_type = identify_event(title)
         results.append({
             'title': title,
-            'source': source,
-            'sentiment': sentiment,
-            'confidence': round(confidence, 2),
+            'source': n.get('source', '未知'),
+            'sentiment': p['label'],
+            'confidence': round(float(p['confidence']), 2),
             'event': n.get('event', event_name),
+            'engine': backend,
         })
 
     pos = sum(1 for r in results if '看涨' in r['sentiment'])
@@ -334,4 +393,6 @@ def analyze_sentiments(stock_code, news_list):
         'pos_pct': int(pos / total * 100),
         'neu_pct': int(neu / total * 100),
         'neg_pct': int(neg / total * 100),
+        'engine': backend,
+        'model_status': {**get_backend().status(probe=(backend == 'model')), 'engine': backend},
     }

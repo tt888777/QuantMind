@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from modules.data_fetch import generate_sample_data, import_csv, load_quotation, import_tdx_day, import_tdx_dir
 from modules.data_process import clean, calc_indicators
 from modules.backtest import run_backtest
-from modules.sentiment import collect_sentiment, analyze_sentiments
+from modules.sentiment import collect_sentiment, analyze_sentiments, classify_titles
+from modules.sentiment_model import get_backend as get_sentiment_backend
 from db import get_session, TechnicalIndicator, QuotationDaily, StockBasic
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'))
@@ -256,8 +257,9 @@ def api_pipeline():
             results.append({'step': 'viz', 'ok': True, 'msg': f'图表：{len(df)} 条数据'})
         elif step == 'sentiment':
             info = collect_sentiment(sc)
-            result = analyze_sentiments(sc, info['news'])
-            results.append({'step': 'sentiment', 'ok': True, 'msg': f"舆情分析：{info['total']} 条，情绪指数 {result['index']}"})
+            result = analyze_sentiments(sc, info['news'], engine=d.get('engine', 'keyword'))
+            results.append({'step': 'sentiment', 'ok': True,
+                            'msg': f"舆情分析：{info['total']} 条，情绪指数 {result['index']}（引擎：{result['engine']}）"})
         elif step == 'report':
             df = load_quotation(sc)
             bt = run_backtest(sc, short=5, long_=20, init_capital=100000)
@@ -456,16 +458,87 @@ def api_sentiment_collect():
                     'msg': f"采集 {info['total']} 条舆情（去重后 {info['dedup']} 条）{'[模拟数据]' if info.get('simulated') else ''}"})
 
 
+def _base_label(label):
+    """把 强烈看涨/看涨/中性偏空… 归一化成三分类基标签，便于两引擎对比。"""
+    s = str(label or '')
+    if '看涨' in s:
+        return '看涨'
+    if '看跌' in s:
+        return '看跌'
+    return '中性'
+
+
 @app.route('/api/sentiment_analyze', methods=['POST'])
 def api_sentiment_analyze():
     d = request.json or {}
     sc = d.get('stock_code', '600519')
+    engine = d.get('engine', 'keyword')
     info = collect_sentiment(sc)
-    result = analyze_sentiments(sc, info['news'])
+    result = analyze_sentiments(sc, info['news'], engine=engine)
     return jsonify({'ok': True, 'index': result['index'], 'results': result['results'],
                     'events': result['events'], 'pos_pct': result['pos_pct'],
                     'neu_pct': result['neu_pct'], 'neg_pct': result['neg_pct'],
-                    'msg': f"情绪指数 {result['index']}/100"})
+                    'engine': result['engine'], 'model_status': result['model_status'],
+                    'simulated': info.get('simulated', False), 'total': info['total'],
+                    'msg': f"情绪指数 {result['index']}/100（引擎：{result['engine']}）"})
+
+
+@app.route('/api/sentiment_engine_status', methods=['GET', 'POST'])
+def api_sentiment_engine_status():
+    """查询情感分析引擎（模型）的加载状态。"""
+    probe = True
+    if request.method == 'POST':
+        probe = bool((request.json or {}).get('probe', True))
+    st = get_sentiment_backend().status(probe=probe)
+    st['engine'] = 'model' if st['loaded'] else 'keyword'
+    return jsonify({'ok': True, **st})
+
+
+@app.route('/api/sentiment_predict', methods=['POST'])
+def api_sentiment_predict():
+    """单条/批量标题情感预测；compare=true 时同时给出关键词与模型结果。"""
+    d = request.json or {}
+    raw = d.get('titles')
+    if raw is None:
+        raw = [d.get('title', '')]
+    if isinstance(raw, str):
+        raw = [raw]
+    titles = [str(t).strip() for t in raw if str(t).strip()]
+    if not titles:
+        return jsonify({'ok': False, 'msg': '未提供标题'})
+
+    engine = d.get('engine', 'auto')
+    if not d.get('compare'):
+        preds, backend = classify_titles(titles, engine=engine)
+        items = [{'title': t, 'sentiment': p['label'], 'confidence': p['confidence'],
+                  'probs': p['probs']} for t, p in zip(titles, preds)]
+        return jsonify({'ok': True, 'count': len(items), 'engine': backend, 'items': items,
+                        'model_status': get_sentiment_backend().status(probe=(backend == 'model')),
+                        'msg': f'预测 {len(items)} 条（引擎：{backend}）'})
+
+    kw_preds, _ = classify_titles(titles, engine='keyword')
+    ml_preds, ml_backend = classify_titles(titles, engine=engine)
+    used_model = ml_backend == 'model'
+    items, valid = [], []
+    for t, k, m in zip(titles, kw_preds, ml_preds):
+        agree = (_base_label(k['label']) == _base_label(m['label'])) if used_model else None
+        item = {
+            'title': t,
+            'keyword': {'label': k['label'], 'confidence': k['confidence']},
+            'model': {'label': m['label'], 'confidence': m['confidence'],
+                      'probs': m['probs']} if used_model else None,
+            'agree': agree,
+        }
+        items.append(item)
+        if agree is not None:
+            valid.append(agree)
+    agree_rate = round(sum(1 for v in valid if v) / len(valid), 4) if valid else None
+    return jsonify({'ok': True, 'count': len(items), 'items': items,
+                    'engine': ml_backend, 'model_used': used_model,
+                    'agree_rate': agree_rate,
+                    'model_status': get_sentiment_backend().status(probe=False),
+                    'msg': (f'对比 {len(items)} 条，两引擎一致 {sum(1 for v in valid if v)} 条'
+                            if used_model else '模型不可用，已回退关键词规则')})
 
 
 @app.route('/api/sentiment_fuse', methods=['POST'])
@@ -618,4 +691,13 @@ def serve_export(filename):
 
 
 if __name__ == '__main__':
-    app.run(debug=False, port=5000, threaded=True)
+    # 可选预热：QUANTMIND_SENTIMENT_WARMUP=1 时启动即加载情感模型，
+    # 避免第一个请求等待十几秒；默认关闭以保持启动速度。
+    if os.environ.get('QUANTMIND_SENTIMENT_WARMUP', '0') == '1':
+        print('[sentiment] 预热情感模型 ...')
+        _ok = get_sentiment_backend().load()
+        print('[sentiment] ' + ('模型已加载' if _ok else '模型不可用，将回退关键词规则'))
+    app.run(debug=False,
+            host=os.environ.get('QUANTMIND_HOST', '127.0.0.1'),
+            port=int(os.environ.get('QUANTMIND_PORT', '5000')),
+            threaded=True)

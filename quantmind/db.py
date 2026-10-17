@@ -1,4 +1,7 @@
-from sqlalchemy import create_engine, Column, String, Date, DateTime, DECIMAL, Integer, BigInteger, Text, JSON
+from datetime import datetime
+
+from sqlalchemy import (create_engine, Column, String, Date, DateTime, DECIMAL,
+                        Integer, BigInteger, Text, JSON, Boolean)
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config import DB_URL
 
@@ -85,6 +88,37 @@ class BacktestMetric(Base):
     win_rate = Column(DECIMAL(6, 4))
     sharpe_ratio = Column(DECIMAL(8, 4))
     trade_count = Column(Integer, default=0)
+
+
+# ---------------------------------------------------------------
+# 账号体系（注册 / 登录 / 个人中心）
+# 表名刻意加 qm_ 前缀：MySQL 里 user 是个容易撞名的词。
+# ---------------------------------------------------------------
+class User(Base):
+    __tablename__ = "qm_user"
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
+    username = Column(String(32), nullable=False, unique=True, index=True)
+    email = Column(String(190), unique=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    display_name = Column(String(64))
+    role = Column(String(16), default="user")          # user / admin
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    last_login_at = Column(DateTime)
+    last_login_ip = Column(String(64))
+
+
+class LoginLog(Base):
+    """登录 / 注册 / 改密等账号事件流水，用于个人中心的「登录记录」。"""
+    __tablename__ = "qm_login_log"
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, index=True)
+    username = Column(String(32))
+    action = Column(String(16), nullable=False)        # register / login / logout / password / profile
+    success = Column(Boolean, default=True, nullable=False)
+    ip = Column(String(64))
+    user_agent = Column(String(255))
+    created_at = Column(DateTime, default=datetime.now)
 
 
 def get_session():

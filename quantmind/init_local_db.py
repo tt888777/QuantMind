@@ -68,6 +68,14 @@ def main():
     finally:
         s.close()
 
+    # 账号表 + 演示账号（login.html 上会提示用 demo / demo123456）
+    try:
+        from modules.auth import ensure_schema, ensure_demo_user
+        ensure_schema()
+        ensure_demo_user()
+    except Exception as e:
+        print(f"[警告] 账号表初始化失败：{type(e).__name__}: {e}")
+
     print("\n完成。启动服务：")
     print(f'  QUANTMIND_DB_URL="sqlite:///{args.db.replace(chr(92), "/")}" python app.py')
     return 0

@@ -35,6 +35,9 @@ quantmind/quantmind_local.db
 *.sqlite
 *.sqlite3
 
+# 会话密钥（首次启动自动生成，绝不要提交）
+quantmind/.secret_key
+
 # ================= ML 训练环境（不要提交） =================
 ml/.venv/
 ml/__pycache__/

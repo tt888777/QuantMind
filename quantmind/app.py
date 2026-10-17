@@ -1,5 +1,5 @@
 import sys, os, io, json, math, random
-from flask import Flask, send_from_directory, send_file, jsonify, request
+from flask import Flask, send_from_directory, send_file, jsonify, request, redirect
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 import pandas as pd
@@ -10,9 +10,13 @@ from modules.data_process import clean, calc_indicators
 from modules.backtest import run_backtest
 from modules.sentiment import collect_sentiment, analyze_sentiments, classify_titles
 from modules.sentiment_model import get_backend as get_sentiment_backend
+from modules.auth import init_auth, current_user
 from db import get_session, TechnicalIndicator, QuotationDaily, StockBasic
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'))
+
+# 账号体系：注册蓝图 + 会话密钥 + 全局登录守卫（详见 modules/auth.py）
+init_auth(app)
 
 HTML_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 EXPORT_DIR = os.path.join(HTML_DIR, 'exports')
@@ -39,6 +43,22 @@ def index():
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
+    return resp
+
+
+def _safe_next(raw):
+    """/login?next=... 的回跳目标只允许站内相对路径，避免开放重定向。"""
+    if raw and raw.startswith('/') and not raw.startswith('//') and not raw.startswith('/\\'):
+        return raw
+    return '/'
+
+
+@app.route('/login')
+def login_page():
+    if current_user():
+        return redirect(_safe_next(request.args.get('next')))
+    resp = send_from_directory(os.path.dirname(os.path.abspath(__file__)), 'login.html')
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
 

@@ -292,5 +292,43 @@ CREATE TABLE pipeline_step_log (
 ) ENGINE=InnoDB COMMENT='流水线步骤执行日志表';
 
 -- ============================================================
--- 建库完成：共 16 张表，覆盖 5 模块 14 功能点
+-- 模块六：账号与登录（QQ-01 / QQ-02）
+-- 说明：应用启动时 SQLAlchemy 也会自动 create_all 这两张表，
+--       这里单独给出 DDL，便于直接用 MySQL 脚本建库的场合。
+-- ============================================================
+
+-- 17. 用户表
+CREATE TABLE qm_user (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    username        VARCHAR(32)  NOT NULL COMMENT '登录名，3~20 位',
+    email           VARCHAR(190) DEFAULT NULL COMMENT '邮箱（可空，可用于登录）',
+    password_hash   VARCHAR(255) NOT NULL COMMENT 'scrypt 加盐哈希，绝不存明文',
+    display_name    VARCHAR(64)  DEFAULT NULL COMMENT '昵称',
+    role            VARCHAR(16)  DEFAULT 'user' COMMENT 'user / admin',
+    is_active       TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '1=启用 0=停用',
+    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    last_login_at   DATETIME     DEFAULT NULL,
+    last_login_ip   VARCHAR(64)  DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_username (username),
+    UNIQUE KEY uk_email (email)
+) ENGINE=InnoDB COMMENT='用户账号表';
+
+-- 18. 登录/操作流水表
+CREATE TABLE qm_login_log (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id         BIGINT       DEFAULT NULL,
+    username        VARCHAR(32)  DEFAULT NULL,
+    action          VARCHAR(16)  NOT NULL COMMENT 'register/login/logout/password/profile',
+    success         TINYINT(1)   NOT NULL DEFAULT 1,
+    ip              VARCHAR(64)  DEFAULT NULL,
+    user_agent      VARCHAR(255) DEFAULT NULL,
+    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_user (user_id),
+    KEY idx_time (created_at)
+) ENGINE=InnoDB COMMENT='登录与账号操作流水表';
+
+-- ============================================================
+-- 建库完成：共 18 张表，覆盖 6 模块（含账号体系）
 -- ============================================================

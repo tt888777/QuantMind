@@ -214,6 +214,51 @@ body{
   padding:5px 10px;border:1px solid rgba(245,158,11,.3);border-radius:8px;background:rgba(245,158,11,.08);
 }
 .eng-fallback.on{display:inline-flex}
+/* ===== 账号：侧边栏用户卡 + 下拉菜单 ===== */
+.user-chip{position:relative;cursor:pointer;border-radius:10px;transition:background .15s}
+.user-chip:hover{background:rgba(255,255,255,.04)}
+.user-meta{min-width:0;flex:1;overflow:hidden}
+.user-name{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-mail{font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-caret{width:14px;height:14px;color:var(--dim);flex-shrink:0;transition:transform .2s}
+.user-chip.open .user-caret{transform:rotate(180deg)}
+.user-chip.open{background:rgba(255,255,255,.05)}
+.user-menu{
+  position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:60;padding:6px;display:none;
+  background:var(--surface-2);border:1px solid var(--border-strong);border-radius:11px;
+  box-shadow:0 18px 44px rgba(0,0,0,.62);
+}
+.user-chip.open .user-menu{display:block;animation:fade .16s ease}
+.user-menu .um-head{padding:8px 10px 9px;border-bottom:1px solid var(--border);margin-bottom:5px}
+.um-head .n{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.um-head .r{font-size:10.5px;color:var(--dim);margin-top:2px}
+.user-menu button{
+  display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;border:0;border-radius:7px;
+  background:transparent;color:var(--muted);font-family:inherit;font-size:12.5px;cursor:pointer;text-align:left;
+  transition:background .14s,color .14s;
+}
+.user-menu button:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.user-menu button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;flex-shrink:0}
+.user-menu .sep{height:1px;background:var(--border);margin:5px 4px}
+.user-menu button.danger:hover{background:rgba(239,68,68,.1);color:#FCA5A5}
+
+/* ===== 个人中心 ===== */
+.profile-hero{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.profile-avatar{
+  width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:22px;font-weight:600;
+  color:#fff;background:linear-gradient(135deg,var(--indigo),var(--purple));box-shadow:0 0 26px var(--glow-indigo);
+  flex-shrink:0;
+}
+.profile-name{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.profile-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.profile-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}
+@media(max-width:1180px){.profile-grid{grid-template-columns:1fr}}
+.form-msg{font-size:12px;line-height:1.5;margin-top:10px;padding:8px 11px;border-radius:8px;display:none}
+.form-msg.show{display:block}
+.form-msg.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.26);color:#86EFAC}
+.form-msg.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.26);color:#FCA5A5}
+.readonly{opacity:.6;cursor:not-allowed}
+
 ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.16)}
 </style>
 </head>
@@ -267,11 +312,36 @@ body{
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 3h9l5 5v13a0 0 0 01-1 0H6a1 1 0 01-1-1V4a1 1 0 011-1zM14 3v5h5M9 13h6M9 17h6"/></svg>
       报告中心
     </div>
-    <div class="sidebar-foot">
-      <div class="avatar">研</div>
-      <div>
-        <div style="font-size:12.5px;font-weight:500">量化研究员</div>
-        <div style="font-size:10.5px;color:var(--dim)">researcher@quant</div>
+    <div class="nav-group">账户</div>
+    <div class="nav-item" data-view="profile">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4" stroke-linecap="round"/><path stroke-linecap="round" d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+      个人中心
+    </div>
+    <div class="sidebar-foot user-chip" id="userChip">
+      <div class="avatar" id="userAvatar">Q</div>
+      <div class="user-meta">
+        <div class="user-name" id="userName">加载中…</div>
+        <div class="user-mail" id="userMail">—</div>
+      </div>
+      <svg class="user-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 15l6-6 6 6"/></svg>
+      <div class="user-menu" id="userMenu">
+        <div class="um-head">
+          <div class="n" id="umName">—</div>
+          <div class="r" id="umRole">—</div>
+        </div>
+        <button data-act="profile">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4" stroke-linecap="round"/><path stroke-linecap="round" d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+          个人中心
+        </button>
+        <button data-act="password">
+          <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path stroke-linecap="round" d="M8 10V7a4 4 0 018 0v3"/></svg>
+          修改密码
+        </button>
+        <div class="sep"></div>
+        <button data-act="logout" class="danger">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" d="M15 12H4m0 0l3.5-3.5M4 12l3.5 3.5M12 4h6a2 2 0 012 2v12a2 2 0 01-2 2h-6"/></svg>
+          退出登录
+        </button>
       </div>
     </div>
   </aside>
@@ -773,11 +843,99 @@ body{
         </div>
       </section>
 
+      <!-- ===== PROFILE ===== -->
+      <section class="view" id="view-profile">
+        <div class="page-title">个人中心</div>
+        <div class="page-desc">管理账号资料与登录安全 · 数据存于 <span class="mono" style="font-size:11.5px;color:var(--muted)">qm_user</span> / <span class="mono" style="font-size:11.5px;color:var(--muted)">qm_login_log</span> 表</div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="profile-hero" style="margin-bottom:0">
+            <div class="profile-avatar" id="pfAvatar">Q</div>
+            <div style="flex:1;min-width:0">
+              <div class="profile-name" id="pfName">—</div>
+              <div class="profile-sub" id="pfSub">—</div>
+            </div>
+            <div class="kvs" style="flex-shrink:0">
+              <span class="kv">角色 <b id="pfRole">—</b></span>
+              <span class="kv">注册 <b id="pfCreated">—</b></span>
+              <span class="kv">上次登录 <b id="pfLastLogin">—</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-grid">
+          <div class="card">
+            <div class="section-title">基本资料</div>
+            <div class="field">
+              <label>用户名</label>
+              <input class="input readonly" id="pfUsername" readonly title="用户名注册后不可修改">
+            </div>
+            <div class="field">
+              <label>昵称</label>
+              <input class="input" id="pfDisplay" maxlength="32" placeholder="展示在侧边栏的名字">
+            </div>
+            <div class="field">
+              <label>邮箱<span style="color:var(--dim)"> · 选填</span></label>
+              <input class="input" id="pfEmail" placeholder="用于找回账号" autocomplete="email">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btnSaveProfile">保存资料</button>
+            <div class="form-msg" id="pfMsg"></div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">修改密码</div>
+            <div class="field">
+              <label>当前密码</label>
+              <input class="input" id="pwOld" type="password" placeholder="请输入当前密码" autocomplete="current-password">
+            </div>
+            <div class="field">
+              <label>新密码</label>
+              <input class="input" id="pwNew" type="password" placeholder="至少 6 位" autocomplete="new-password">
+            </div>
+            <div class="field">
+              <label>确认新密码</label>
+              <input class="input" id="pwNew2" type="password" placeholder="再输入一次" autocomplete="new-password">
+            </div>
+            <button class="btn btn-sm" id="btnChangePw">更新密码</button>
+            <div class="form-msg" id="pwMsg"></div>
+            <div class="hint" style="align-items:flex-start;line-height:1.6">
+              密码使用 Werkzeug scrypt 加盐哈希存储，数据库里看不到明文。
+            </div>
+          </div>
+
+          <div class="card" style="grid-column:1/-1">
+            <div class="section-title">最近登录与操作记录</div>
+            <div class="tbl-wrap" style="max-height:300px;border:none">
+              <table class="tbl">
+                <thead><tr><th>时间</th><th>事件</th><th>结果</th><th>IP</th><th>客户端</th></tr></thead>
+                <tbody id="logTable">
+                  <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
 </div>
 
 <script>
+/* ============ 全局兜底：会话过期（401）时自动回到登录页 ============ */
+(function(){
+  const raw=window.fetch.bind(window);
+  window.fetch=async function(...args){
+    const res=await raw(...args);
+    if(res.status===401){
+      const here=location.pathname+location.search;
+      location.replace('/login?next='+encodeURIComponent(here));
+      throw new Error('unauthorized');
+    }
+    return res;
+  };
+})();
+
 /* ============ 情感分析引擎（全局状态，默认与原行为一致=关键词规则） ============ */
 let sentimentEngine='keyword';        // 'keyword' | 'model'
 let sentimentModelStatus=null;        // 最近一次引擎状态快照
@@ -790,7 +948,7 @@ const MODEL_NAME='DAPT + 财经新闻 LoRA';
 const navItems=document.querySelectorAll('.nav-item');
 const views=document.querySelectorAll('.view');
 const crumb=document.getElementById('crumbCurrent');
-const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',pipeline:'分析流水线',report:'报告中心'};
+const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',pipeline:'分析流水线',report:'报告中心',profile:'个人中心'};
 navItems.forEach(it=>it.addEventListener('click',()=>{
   navItems.forEach(i=>i.classList.remove('active'));
   it.classList.add('active');
@@ -1635,6 +1793,131 @@ if(btnReportHtml)btnReportHtml.addEventListener('click',async()=>{
   }catch(e){btnReportHtml.textContent='导出失败 ✗';setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000)}finally{btnReportHtml.disabled=false}
 });
 
+/* ============ 账号：当前用户 / 下拉菜单 / 个人中心 ============ */
+let me=null;
+const ROLE_LABEL={user:'普通用户',admin:'管理员'};
+const chip=document.getElementById('userChip');
+
+function applyMe(u){
+  me=u;
+  const mail=u.email||('@'+u.username);
+  document.getElementById('userAvatar').textContent=u.avatar||'Q';
+  document.getElementById('userName').textContent=u.display_name||u.username;
+  document.getElementById('userMail').textContent=mail;
+  const umName=document.getElementById('umName');
+  const umRole=document.getElementById('umRole');
+  if(umName)umName.textContent=u.display_name||u.username;
+  if(umRole)umRole.textContent=(ROLE_LABEL[u.role]||u.role)+' · @'+u.username;
+  /* 个人中心 */
+  document.getElementById('pfAvatar').textContent=u.avatar||'Q';
+  document.getElementById('pfName').textContent=u.display_name||u.username;
+  document.getElementById('pfSub').textContent='@'+u.username+(u.email?' · '+u.email:'');
+  document.getElementById('pfRole').textContent=ROLE_LABEL[u.role]||u.role;
+  document.getElementById('pfCreated').textContent=u.created_at||'—';
+  document.getElementById('pfLastLogin').textContent=u.last_login_at||'—';
+  document.getElementById('pfUsername').value=u.username;
+  document.getElementById('pfDisplay').value=u.display_name||u.username;
+  document.getElementById('pfEmail').value=u.email||'';
+}
+
+async function loadMe(){
+  try{
+    const r=await fetch(API+'/auth/me').then(r=>r.json());
+    if(r.ok&&r.user)applyMe(r.user);
+  }catch(e){/* 后端未启动时保持占位文案 */}
+}
+
+function goView(v){
+  const it=document.querySelector(`.nav-item[data-view="${v}"]`);
+  if(it&&!it.classList.contains('active'))it.click();
+}
+
+function showFormMsg(id,text,type){
+  const el=document.getElementById(id);if(!el)return;
+  el.textContent=text;el.className='form-msg show '+type;
+}
+
+async function logout(){
+  try{await fetch(API+'/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}catch(e){}
+  location.href='/login';
+}
+
+if(chip){
+  chip.addEventListener('click',e=>{
+    if(e.target.closest('.user-menu button'))return;
+    chip.classList.toggle('open');
+  });
+  document.addEventListener('click',e=>{if(!chip.contains(e.target))chip.classList.remove('open')});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')chip.classList.remove('open')});
+  chip.querySelectorAll('.user-menu button').forEach(b=>b.addEventListener('click',()=>{
+    const act=b.dataset.act;
+    chip.classList.remove('open');
+    if(act==='logout')return logout();
+    goView('profile');
+    if(act==='password')setTimeout(()=>document.getElementById('pwOld').focus(),220);
+  }));
+}
+
+/* --- 保存资料 --- */
+const btnSaveProfile=document.getElementById('btnSaveProfile');
+if(btnSaveProfile)btnSaveProfile.addEventListener('click',async()=>{
+  const display_name=document.getElementById('pfDisplay').value.trim();
+  const email=document.getElementById('pfEmail').value.trim();
+  if(!display_name)return showFormMsg('pfMsg','昵称不能为空','err');
+  if(email&&!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(email))return showFormMsg('pfMsg','邮箱格式不正确','err');
+  btnSaveProfile.disabled=true;btnSaveProfile.textContent='保存中...';
+  try{
+    const r=await fetch(API+'/auth/profile',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({display_name,email})}).then(r=>r.json());
+    if(r.ok){applyMe(r.user);showFormMsg('pfMsg',r.msg,'ok');logActivity('个人中心','更新资料','ok')}
+    else showFormMsg('pfMsg',r.msg||'保存失败','err');
+  }catch(e){showFormMsg('pfMsg','网络异常：'+e.message,'err')}
+  finally{btnSaveProfile.disabled=false;btnSaveProfile.textContent='保存资料'}
+});
+
+/* --- 修改密码 --- */
+const btnChangePw=document.getElementById('btnChangePw');
+if(btnChangePw)btnChangePw.addEventListener('click',async()=>{
+  const old_password=document.getElementById('pwOld').value;
+  const new_password=document.getElementById('pwNew').value;
+  const new_password2=document.getElementById('pwNew2').value;
+  if(!old_password)return showFormMsg('pwMsg','请输入当前密码','err');
+  if(new_password.length<6)return showFormMsg('pwMsg','新密码至少 6 位','err');
+  if(new_password!==new_password2)return showFormMsg('pwMsg','两次输入的新密码不一致','err');
+  btnChangePw.disabled=true;btnChangePw.textContent='更新中...';
+  try{
+    const r=await fetch(API+'/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({old_password,new_password,new_password2})}).then(r=>r.json());
+    if(r.ok){
+      showFormMsg('pwMsg',r.msg,'ok');
+      ['pwOld','pwNew','pwNew2'].forEach(id=>document.getElementById(id).value='');
+      logActivity('个人中心','修改密码','ok');
+    }else showFormMsg('pwMsg',r.msg||'修改失败','err');
+  }catch(e){showFormMsg('pwMsg','网络异常：'+e.message,'err')}
+  finally{btnChangePw.disabled=false;btnChangePw.textContent='更新密码'}
+});
+
+/* --- 登录记录 --- */
+async function loadLogs(){
+  const tb=document.getElementById('logTable');if(!tb)return;
+  try{
+    const r=await fetch(API+'/auth/logs?limit=12').then(r=>r.json());
+    if(!r.ok||!r.items||!r.items.length){
+      tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">暂无记录</td></tr>';
+      return;
+    }
+    tb.innerHTML=r.items.map(it=>`<tr>
+      <td class="mono" style="font-size:11.5px;color:var(--muted)">${it.time}</td>
+      <td>${it.action}</td>
+      <td><span class="badge ${it.success?'b-green':'b-red'}">${it.success?'成功':'失败'}</span></td>
+      <td class="mono" style="font-size:11.5px;color:var(--muted)">${it.ip}</td>
+      <td style="color:var(--dim);font-size:11px">${it.ua}</td>
+    </tr>`).join('');
+  }catch(e){
+    tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--red);padding:16px">加载失败</td></tr>';
+  }
+}
+
 /* --- 导航联动：切页时加载数据 --- */
 navItems.forEach(it=>it.addEventListener('click',()=>{
   const v=it.dataset.view;
@@ -1643,7 +1926,17 @@ navItems.forEach(it=>it.addEventListener('click',()=>{
   if(v==='viz')setTimeout(loadRealKline,100);
   if(v==='backtest'){const bi=document.getElementById('btStockInput');if(bi)bi.value=currentStock;if(btParams.start_date){const sd=document.getElementById('btStartDate');if(sd)sd.value=btParams.start_date;}if(btParams.end_date){const ed=document.getElementById('btEndDate');if(ed)ed.value=btParams.end_date;}}
   if(v==='report'){loadReportHistory();generateReportPreview()}
+  if(v==='profile')setTimeout(loadLogs,60);
 }));
+
+/* --- 启动：拉取当前登录用户 --- */
+loadMe();
+
+/* --- 支持 /#profile 这类锚点直接打开某个视图（方便分享链接） --- */
+(function(){
+  const h=(location.hash||'').replace(/^#\/?/,'');
+  if(h&&titles[h]){const it=document.querySelector(`.nav-item[data-view="${h}"]`);if(it)it.click()}
+})();
 
 </script>
 </body>

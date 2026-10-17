@@ -25,28 +25,42 @@
 - [三、环境要求](#三环境要求)
 - [四、目录结构](#四目录结构)
 - [五、情感引擎说明](#五情感引擎说明)
-- [六、环境变量](#六环境变量)
-- [七、接口清单](#七接口清单)
-- [八、常见问题](#八常见问题)
-- [九、数据来源](#九数据来源)
-- [十、实测结果](#十实测结果)
-- [十一、复现训练链路](#十一复现训练链路)
-- [十二、发布模型到 Hugging Face](#十二发布模型到-hugging-face)
+- [六、账号与登录](#六账号与登录)
+- [七、环境变量](#七环境变量)
+- [八、接口清单](#八接口清单)
+- [九、常见问题](#九常见问题)
+- [十、数据来源](#十数据来源)
+- [十一、实测结果](#十一实测结果)
+  - [11.0 线上模型](#110-线上模型lora_dapt_flame新闻测试集-2936-条)
+  - [11.1 股吧域对照](#111-股吧域对照测试集-2130-条-3-分类)
+  - [11.2 跨域泛化实测](#112-跨域泛化实测换了第二个域的数据集)
+- [十二、复现训练链路](#十二复现训练链路)
+- [十三、发布模型到 Hugging Face](#十三发布模型到-hugging-face)
 
 ---
 
 ## 一、它长什么样
 
-启动后浏览器访问 <http://127.0.0.1:5000>，左侧导航共 5 个功能区：
+启动后浏览器访问 <http://127.0.0.1:5000>，**先登录**（演示账号 `demo / demo123456`，  
+也可以自己注册）：
 
-| 页面       | 功能                                          |
-| -------- | ------------------------------------------- |
-| **概览**   | 市场情绪指数、数据源状态、最近活动                           |
-| **数据导入** | 拖拽上传 CSV/Excel，或从接口抓取行情                     |
-| **数据处理** | 自动清洗报告（缺失填充 / 异常修正）+ MA / RSI / MACD 指标计算   |
-| **量化研究** | 双均线策略回测（收益、年化、夏普、最大回撤）                      |
-| **舆情决策** | 采集财经新闻/股吧 → 情感分析 → **情感引擎切换开关** → 情绪特征融合进策略 |
-| **报告中心** | 导出图表与回测报告                                   |
+![登录页](docs/screenshot-login.png)
+
+进入工作台后左侧导航如下：
+
+| 页面        | 功能                                          |
+| --------- | ------------------------------------------- |
+| **概览**    | 市场情绪指数、数据源状态、最近活动                           |
+| **数据导入**  | 拖拽上传 CSV/Excel，或从接口抓取行情                     |
+| **数据处理**  | 自动清洗报告（缺失填充 / 异常修正）+ MA / RSI / MACD 指标计算   |
+| **行情可视化** | K 线 + 成交量 + 均线，ECharts 交互图表                 |
+| **舆情决策**  | 采集财经新闻/股吧 → 情感分析 → **情感引擎切换开关** → 情绪特征融合进策略 |
+| **量化回测**  | 双均线策略回测（收益、年化、夏普、最大回撤）                      |
+| **分析流水线** | 勾选步骤一次性跑完 数据 → 指标 → 回测 → 舆情 → 报告            |
+| **报告中心**  | 导出图表与回测报告                                   |
+| **个人中心**  | 改昵称/邮箱、改密码、查看登录记录（见 [六、账号与登录](#六账号与登录)）     |
+
+侧边栏底部是当前登录用户，点开可以进个人中心或退出登录。
 
 舆情决策页顶部就是这个项目的核心演示点：
 
@@ -129,9 +143,9 @@ python setup_model.py --from-hf <用户名>/<仓库名>
 
 约 390MB。下载完会把仓库地址写进 `ml/model_source.json`，之后直接 `python setup_model.py` 即可复用。
 
-> 该 HF 仓库里还有 `adapter/` 与 `dapt_base/` 两个子目录（合计再约 410MB）。
-> `--from-hf` **只取根目录的合并模型**、自动跳过这两个子目录，所以实际只下载 390MB。
-> 需要它们时见 [十二](#十二发布模型到-hugging-face) 的说明。
+> 该 HF 仓库里还有 `adapter/` 与 `dapt_base/` 两个子目录（合计再约 410MB）。  
+> `--from-hf` **只取根目录的合并模型**、自动跳过这两个子目录，所以实际只下载 390MB。  
+> 需要它们时见 [十三](#十三发布模型到-hugging-face) 的说明。
 
 **方案 ② 用仓库自带 adapter 现场合并**
 
@@ -151,7 +165,7 @@ python setup_model.py --check
 
 > **国内网络提示**：`huggingface.co` 在部分网络下不可达。脚本与启动文件**已默认使用镜像  
 > `https://hf-mirror.com`**，无需手动配置；换其它镜像设 `HF_ENDPOINT` 即可。  
-> 注意**镜像只支持下载**——发布模型（见 [十二](#十二发布模型到-hugging-face)）必须用官方站。
+> 注意**镜像只支持下载**——发布模型（见 [十三](#十三发布模型到-hugging-face)）必须用官方站。
 
 ### 步骤 5 · 启动与自检
 
@@ -160,7 +174,15 @@ cd ..\quantmind
 start_server_local.bat
 ```
 
-浏览器打开 <http://127.0.0.1:5000>，进&#x5165;**「舆情决策」**&#x9875;：
+浏览器打开 <http://127.0.0.1:5000>，会先看到登录页。用演示账号登录：
+
+```
+demo / demo123456
+```
+
+（登录页上有「填入演示账号」的快捷入口；也可以点「注册」建自己的账号。）
+
+登录后进&#x5165;**「舆情决策」**&#x9875;：
 
 1. 顶部有引擎切换条，点 **AI 模型（DAPT + 财经新闻 LoRA）**
 2. 徽标显示 `DAPT + 财经新闻 LoRA 就绪 · GPU · 看跌/看涨/中性` 即加载成功
@@ -207,20 +229,23 @@ cd ..\quantmind && start_server_local.bat
 
 ```
 QuantMind/
-├── prototype.html                  # 单页前端（Flask 直接托管，改它不用重启服务）
+├── prototype.html                  # 单页工作台（登录后由 Flask 直接托管，改它不用重启服务）
 ├── user-stories.md                 # 需求 / 用户故事
 ├── quantmind_schema.sql            # MySQL 建表脚本
 │
 ├── quantmind/                      # Flask 后端
 │   ├── app.py                      # 全部路由
+│   ├── login.html                  # 登录 / 注册页（未登录时由 /login 提供）
 │   ├── config.py                   # DB_URL（支持环境变量覆盖）
-│   ├── db.py                       # SQLAlchemy 模型（MySQL / SQLite 双兼容）
-│   ├── init_local_db.py            # 本地 SQLite 建库 + 示例数据
+│   ├── db.py                       # SQLAlchemy 模型（含 qm_user / qm_login_log）
+│   ├── init_local_db.py            # 本地 SQLite 建库 + 示例数据 + 演示账号
 │   ├── start_server_local.bat      # SQLite 模式启动（推荐）
 │   ├── start_server.bat            # MySQL 模式启动
 │   ├── requirements.txt            # Web 依赖
 │   ├── requirements-ml.txt         # 模型推理依赖
+│   ├── .secret_key                 # 会话密钥（首次启动生成，已 gitignore）
 │   └── modules/
+│       ├── auth.py                 # ★ 账号体系：注册/登录/会话/改密/登录守卫
 │       ├── sentiment.py            # 舆情采集 + 可插拔情感分析
 │       ├── sentiment_model.py      # BERT+LoRA 推理后端（懒加载 / 降级）
 │       ├── data_fetch.py           # 行情抓取
@@ -312,6 +337,7 @@ adapter 场景会去解析 `adapter_config.json` 里的底座路径，**必须�
 > 仓库里 A/B/C 三个 adapter 都保留着，用 `train_lora.py --base ... --merge` 或  
 > `setup_model.py` 的思路都能重建出对应的 `merged/`。
 
+
 ### 一个容易踩的坑：adapter 必须带 `extra_state.safetensors`
 
 DAPT 底座由 `BertForMaskedLM` 保存，**不含 `bert.pooler`**；而  
@@ -331,97 +357,149 @@ DAPT 底座由 `BertForMaskedLM` 保存，**不含 `bert.pooler`**；而
 原理与实现见 `ml/lora_extra.py`。**自检方法**：`merged/` 与 adapter 现场合并两条路径，  
 对同一批文本应给出**逐位一致**的概率。
 
----
+## 六、账号与登录
 
-## 六、环境变量
+打开 <http://127.0.0.1:5000> 会先落到登录页（`quantmind/login.html`），登录后才进入工作台。
 
-全为可选，不设置则使用默认值。
+### 演示账号
 
-| 变量                               | 默认                                                  | 作用                                                        |
-| -------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
-| `QUANTMIND_DB_URL`               | `mysql+pymysql://root:...@localhost:3306/quantmind` | 数据库连接串；切 SQLite 就设成 `sqlite:///<绝对路径>/quantmind_local.db` |
-| `QUANTMIND_SENTIMENT_MODEL`      | `ml/models/lora_dapt_flame/merged`（不存在则 adapter）    | 直接指定情感模型目录；换回股吧域模型就用它                                     |
-| `QUANTMIND_SENTIMENT_BASE_MODEL` | `ml/models/dapt_bert`                               | adapter 对应的底座路径（必须与训练时一致）                                 |
-| `QUANTMIND_SENTIMENT_DEVICE`     | 自动（有 CUDA 用 cuda）                                   | `cuda` / `cpu`                                            |
-| `QUANTMIND_SENTIMENT_MAX_LEN`    | `64`                                                | 最大 token 长度                                               |
-| `QUANTMIND_SENTIMENT_BATCH`      | `32`                                                | 推理批大小                                                     |
-| `QUANTMIND_SENTIMENT_STRONG`     | `0.9`                                               | 「强烈」标签阈值，设 `0` 则禁用                                        |
-| `QUANTMIND_SENTIMENT_WARMUP`     | `0`                                                 | 设 `1` 则启动时预热模型（避免首个请求等待）                                  |
-| `QUANTMIND_MODEL_HF_REPO`        | 读 `ml/model_source.json`                            | 模型所在的 HF 仓库（`用户名/仓库名`），供 `setup_model.py` 使用              |
-| `HF_TOKEN`                       | 无                                                   | 上传模型到 HF 用的 write token（仅 `upload_to_hf.py` 需要）           |
-| `HF_ENDPOINT`                    | 启动脚本已设为 `https://hf-mirror.com`                     | HuggingFace 镜像地址                                          |
-| `HF_HUB_DISABLE_XET`             | 启动脚本与 `setup_model.py` 已设为 `1`                      | 关闭 Xet 协议（镜像站不支持，见 Q1）                                    |
+首次启动会自动建表并播种一个演示账号，登录页上点一下就填：
 
+```
+用户名：demo
+密码：  demo123456
+```
 
-## 八、常见问题
+> 不想要演示账号：启动前设 `QUANTMIND_SEED_DEMO=0`（只对尚未建过账号的库生效）。
 
-**Q1：`huggingface.co` 连不上 / 下载模型卡住？**
+### 有哪些功能
 
-国内网络常态。本项目所有脚本**已默认走 `https://hf-mirror.com`**，并且已经处理好镜像站的两个「专属坑」：
+| 位置           | 功能                                                     |
+| ------------ | ------------------------------------------------------ |
+| **登录 / 注册页** | 登录、注册（自动登录）、记住我 7 天、密码可见性切换、密码强度提示、`?next=` 登录后回跳      |
+| **侧边栏底部用户卡** | 显示昵称 / 邮箱，点开是"个人中心 / 修改密码 / 退出登录"                      |
+| **个人中心**     | 改昵称、改邮箱、修改密码、查看最近 12 条登录与操作记录（时间 / 事件 / 结果 / IP / 客户端） |
 
-| 现象                   | 原因                                            | 已处理方式                                     |
-| -------------------- | --------------------------------------------- | ----------------------------------------- |
-| 404 `xet-read-token` | 新版 `huggingface_hub` 默认使用 **Xet 存储协议**，镜像站不支持 | 脚本已设 `HF_HUB_DISABLE_XET=1` 回落到普通 HTTP 下载 |
-| 403 Forbidden        | 镜像站要求请求带 **User-Agent**，空 UA 会被直接拒绝           | 内置 UA 头                                   |
+### 实现要点
 
-> 如果你自己写脚本下载模型，记得也带上这两项，否则会在这两个地方卡住。
+- **密码**：`werkzeug.security` 的 **scrypt** 加盐哈希，库里只有哈希（`password_hash`），没有明文；  
+  登录支持**用户名或邮箱**。
+- **会话**：Flask 签名 Cookie（`qm_session`，`HttpOnly` + `SameSite=Lax`），  
+  session 里**只存 user id**，用户资料每次从库里读 → 改昵称/改密码立即生效。
+- **密钥**：优先读 `QUANTMIND_SECRET_KEY`；没有就在 `quantmind/.secret_key` 生成一份  
+  （已 gitignore，**不要提交**）。想强制所有人重新登录：删掉该文件或换密钥。
+- **全局守卫**：`modules/auth.py` 的 `before_request` 拦住所有页面与接口 ——  
+  未登录访问页面 → `302 /login?next=...`；未登录调接口 → `401 {"code":"UNAUTHORIZED"}`，  
+  前端拦截到 401 会自动跳回登录页。
+- **防爆破**：同一「用户名 + IP」5 分钟内失败 5 次即返回 `429`，5 分钟后自动解封（进程内计数）。
+- **表**：`qm_user`（账号）、`qm_login_log`（登录/注册/改密流水）。加 `qm_` 前缀是为了避开 MySQL 里的 `user`。
+- **调试开关**：`QUANTMIND_AUTH_DISABLED=1` 跳过登录校验（**仅本机排查用**，不要带到线上）。
 
-如仍失败，可换镜像：`set HF_ENDPOINT=https://你的镜像`。
+### 接口
 
-> ⚠️ **镜像只能下载，不能上传。** 发布模型到 HF（[十二](#十二发布模型到-hugging-face)）  
-> 必须用官方站 `https://huggingface.co`，且需要能访问它的网络。
->
-> 💡 如果连镜像也不通，模型还有第二条路：本机 `python setup_model.py --rebuild`  
-> （前提是已有 DAPT 底座 `ml/models/dapt_bert`）。
+| 方法   | 路径                        | 说明                                         |
+| ---- | ------------------------- | ------------------------------------------ |
+| POST | `/api/auth/register`      | 注册并自动登录                                    |
+| POST | `/api/auth/login`         | 登录（body: `username`/`password`/`remember`） |
+| POST | `/api/auth/logout`        | 退出登录（GET 也支持，直接跳登录页）                       |
+| GET  | `/api/auth/me`            | 当前用户；未登录返回 `user: null`（不报错，登录页要用）         |
+| POST | `/api/auth/profile`       | 改昵称 / 邮箱                                   |
+| POST | `/api/auth/password`      | 改密码（需当前密码）                                 |
+| GET  | `/api/auth/logs?limit=12` | 最近登录与操作记录                                  |
 
-**Q2：我本机没有安装 MySQL，能跑吗？**
-
-能。用 `quantmind\start_server_local.bat` 走 SQLite 模式，首次运行会自动建库。
-
-代码通过 `BigInteger().with_variant(Integer, "sqlite")` 兼容两边，**原 MySQL 配置一行没改**。
-
-**Q3：界面显示「模型不可用，已自动回退关键词规则」？**
-
-1. **模型没准备好**（最常见）→ 跑 `cd ml && python setup_model.py`，  
-   或先 `python setup_model.py --check` 看缺什么（报错会直接写清缺哪一项）；
-2. `torch` / `transformers` 没装 → 见 [二、步骤 2](#步骤-2--建-python-环境)；
-3. **底座路径不对**：adapter 必须挂在 `ml/models/dapt_bert` 上。若你只有  
-   `bert-base-chinese`，请改用 HF 下载的合并模型（`--from-hf`）；
-4. 启动用的是系统 Python 而非 `ml\.venv` → 启动脚本会打印实际使用的解释器，看一眼日志。
-
-**Q4：模型在 CPU 上很慢？**
-
-BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_predict` 支持一次传多条）比逐条调用快得多。
-
-**Q5：为什么仓库里没有模型文件？**
-
-两个权重文件 390MB，超出 GitHub 单文件 100MB 上限，推送会被直接拒绝。
-
-它们在 `.gitignore` 中并附了恢复方式注释；`ml\setup_model.py` 一条命令即可补齐  
-（从 HF 下载，或用仓库自带 adapter 本地合并）。
-
-**3.8MB 的 LoRA adapter 是真正的训练产物，已提交**（含 `extra_state.safetensors`，  
-见 [五、情感引擎说明](#一个容易踩的坑adapter-必须带-extra_statesafetensors)）。
-
-**Q6：为什么演示数据是模拟的？**
-
-`collect_sentiment` 在**所有数据源都抓取失败**时会回退到模板生成的模拟新闻。
-
-接口返回体里的 `simulated` 字段会明确标记。**做实验或答辩演示时建议确认该字段为 `False`**，避免拿模拟数据自证。
-
-**Q7：情感分析真的在用 AI 吗？**
-
-可以用三条硬证据自查：
-
-① `/api/sentiment_engine_status?probe=true` 看 `loaded` 与 `device`；
-
-② 预测结果里出现三分类 softmax 概率向量；
-
-③ 用训练集里不存在的句子测试（如「董事长被采取强制措施，公司紧急停牌」），关键词引擎无法给出合理判断。
+**安全边界**：本方案是「单人本地演示级」的账号体系 —— 会话存在签名 Cookie、限流存在进程内存，  
+够用但不适合直接对外多租户部署。真要上线，把 session 换成 Redis、限流换成网关层，并给 Cookie 开 `Secure`。
 
 ---
 
-## 九、数据来源
+## 七、环境变量
+
+全部可选，不设就走默认值。
+
+| 变量                                  | 默认                                 | 作用                                                 |
+| ----------------------------------- | ---------------------------------- | -------------------------------------------------- |
+| `QUANTMIND_DB_URL`                  | MySQL 本地库                          | 数据库连接串；本机演示用 `sqlite:///<绝对路径>/quantmind_local.db` |
+| `QUANTMIND_HOST` / `QUANTMIND_PORT` | `127.0.0.1` / `5000`               | 监听地址与端口                                            |
+| `QUANTMIND_SECRET_KEY`              | 自动生成到 `quantmind/.secret_key`      | 会话签名密钥                                             |
+| `QUANTMIND_AUTH_DISABLED`           | `0`                                | `1` = 跳过登录校验（仅调试）                                  |
+| `QUANTMIND_SEED_DEMO`               | `1`                                | `0` = 不创建 demo 演示账号                                |
+| `QUANTMIND_SENTIMENT_MODEL`         | `ml/models/lora_dapt_flame/merged` | 指定情感模型目录（也可指向 adapter）                             |
+| `QUANTMIND_SENTIMENT_BASE_MODEL`    | `ml/models/dapt_bert`              | adapter 场景下要挂的底座                                   |
+| `QUANTMIND_SENTIMENT_DEVICE`        | 自动（有 CUDA 就用）                      | `cuda` / `cpu`                                     |
+| `QUANTMIND_SENTIMENT_MAX_LEN`       | `64`                               | 推理最大 token 长度                                      |
+| `QUANTMIND_SENTIMENT_BATCH`         | `32`                               | 推理批大小                                              |
+| `QUANTMIND_SENTIMENT_STRONG`        | `0.9`                              | 输出「强烈看涨/强烈看跌」的概率阈值，`0` = 关闭                        |
+| `QUANTMIND_SENTIMENT_WARMUP`        | `0`                                | `1` = 启动即加载模型（首个请求不用等）                             |
+| `QUANTMIND_MODEL_HF_REPO`           | 读 `ml/model_source.json`           | 覆盖 `setup_model.py` 使用的 HF 仓库                      |
+| `HF_ENDPOINT`                       | `https://hf-mirror.com`            | HF 下载镜像                                            |
+| `HF_HUB_DISABLE_XET`                | 由启动脚本设为 `1`                        | 镜像不支持 Xet 协议，必须关掉                                  |
+
+---
+
+## 八、接口清单
+
+除 `/api/auth/*` 中登录注册相关接口外，**所有接口都需要登录**。
+
+| 方法       | 路径                                          | 说明                                                               |                    |
+| -------- | ------------------------------------------- | ---------------------------------------------------------------- | ------------------ |
+| POST     | `/api/fetch`                                | 生成模拟日线                                                           |                    |
+| POST     | `/api/fetch_api`                            | 走行情接口抓真实日线（akshare / 东财）                                         |                    |
+| POST     | `/api/import_file`                          | 上传 CSV / Excel / JSON / XML，自动识别列                                |                    |
+| POST     | `/api/import_csv` / `/api/import_tdx`       | 专用导入通道                                                           |                    |
+| POST     | `/api/column_mapping`                       | 列语义映射预览                                                          |                    |
+| POST     | `/api/clean`                                | 去重 + 缺失/异常修复                                                     |                    |
+| POST     | `/api/indicators`                           | 计算 MA / RSI / MACD 并落库                                           |                    |
+| POST     | `/api/backtest`                             | 双均线回测（收益 / 年化 / 回撤 / 胜率 / 夏普 / 权益曲线）                             |                    |
+| POST     | `/api/pipeline`                             | 一键流水线（fetch → clean → indicator → backtest → sentiment → report） |                    |
+| GET      | `/api/quotation/<code>`                     | 日线数据                                                             |                    |
+| GET      | `/api/stocks`                               | 已接入标的列表                                                          |                    |
+| POST     | `/api/sentiment_collect`                    | 采集舆情                                                             |                    |
+| POST     | `/api/sentiment_analyze`                    | 情感分析（\`engine=keyword                                            | model\`，模型不可用自动回退） |
+| GET/POST | `/api/sentiment_engine_status`              | 情感模型加载状态（`probe=true` 会触发实际加载）                                   |                    |
+| POST     | `/api/sentiment_predict`                    | 单条/批量标题预测，`compare=true` 输出两引擎对比                                 |                    |
+| POST     | `/api/export_chart` / `/api/export_report`  | 导出图表 / HTML 报告                                                   |                    |
+| GET      | `/api/reports` · POST `/api/reports/delete` | 报告列表 / 删除                                                        |                    |
+
+自检命令（带会话）：
+
+```bash
+curl -c ck.txt -X POST http://127.0.0.1:5000/api/auth/login \
+     -H "Content-Type: application/json" -d "{\"username\":\"demo\",\"password\":\"demo123456\"}"
+curl -b ck.txt http://127.0.0.1:5000/api/sentiment_engine_status?probe=true
+```
+
+---
+
+## 九、常见问题
+
+**Q1 · `pip install -r requirements.txt` 卡住或装不上**  
+先换国内源：`-i https://pypi.tuna.tsinghua.edu.cn/simple`。`torch` 不要盲装默认包，  
+按显卡去 <https://pytorch.org/get-started/locally/> 复制对应 CUDA 版本的那一行；  
+没有 N 卡就装 CPU 版（模型仍能跑，只是慢）。
+
+**Q2 · 启动后打开页面直接跳登录页 / 一直登不进去**  
+这是正常的登录守卫。用 `demo / demo123456`，或在注册标签页建一个自己的账号。  
+若忘记密码，删掉 `quantmind/quantmind_local.db` 后重新 `python init_local_db.py`（**会清空行情数据**）。
+
+**Q3 · 已经登录，但刷新后又要求登录**  
+说明会话密钥变了或 Cookie 丢了：检查 `quantmind/.secret_key` 是否存在且可读；  
+不要每次都用不同的 `QUANTMIND_SECRET_KEY` 启动。
+
+**Q4 · AI 模型加载失败**  
+`sentiment_engine_status` 会给出 `error`。多半是 `ml/models/lora_dapt_flame/merged/` 不存在，  
+跑 `cd ml && python setup_model.py`（或 `--from-hf Roeyyyyyy/quantmind-sentiment-dapt-flame`）。  
+即使加载失败，系统也会**自动回退关键词规则**，页面不会报错。
+
+**Q5 · 端口 5000 被占用**  
+`netstat -ano | findstr :5000` 找到 PID 后 `taskkill /PID <pid> /F`，  
+或用 `QUANTMIND_PORT=5001` 换端口。
+
+**Q6 · 报告 / 图表下载 404**  
+`exports/` 目录被 `.gitignore` 排除，首次运行时会自动创建；确认进程有写权限。
+
+---
+
+## 十、数据来源
 
 | 用途            | 数据集                                                                                                                          | 说明                                                            |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -436,14 +514,14 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 
 这正是本项目保留 DAPT 环节、并做「关键词 vs 模型」对照实验的原因。
 
-**⚠️ 这条局限已用实测数据验证**（见 [10.2 跨域泛化实测](#102-跨域泛化实测换了第二个域的数据集)）：  
+**⚠️ 这条局限已用实测数据验证**（见 [11.2 跨域泛化实测](#112-跨域泛化实测换了第二个域的数据集)）：  
 股吧模型在财经新闻上从 **0.7460 掉到 0.5562（−19.0 pt）**，跨域后接近"全猜多数类"水准。
 
 ---
 
-## 十、实测结果
+## 十一、实测结果
 
-### 10.0 线上模型（`lora_dapt_flame`，新闻测试集 2,936 条）
+### 11.0 线上模型（`lora_dapt_flame`，新闻测试集 2,936 条）
 
 | 方法                      | 底座                  | 数据域  | Accuracy   | Macro-F1   |
 | ----------------------- | ------------------- | ---- | ---------- | ---------- |
@@ -456,7 +534,7 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 - 训练环境：RTX 3060 Laptop 6GB，bs=32 / seq=64 / 5 epoch 约 19 分钟
 - 相对关键词基线：新闻域 **+37.5 pt**（Acc）/ **+42.3 pt**（Macro-F1）
 
-### 10.1 股吧域对照（测试集 2,130 条，3 分类）
+### 11.1 股吧域对照（测试集 2,130 条，3 分类）
 
 | 方法                  | 底座                  | Accuracy     | Macro-F1     |
 | ------------------- | ------------------- | ------------ | ------------ |
@@ -470,12 +548,12 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 > 下游是股吧标题（口语短句），**域不匹配**；且 1 epoch / 2,560 万 token 属轻量适应，  
 > 不足以改变下游表征。这是一个有价值的负结果 —— 详见 `ml/out/baseline_vs_lora.md`。
 >
-> 该结论在**新闻域支线上做了对称验证**（见 [10.2](#102-跨域泛化实测换了第二个域的数据集)）：  
+> 该结论在**新闻域支线上做了对称验证**（见 [11.2](#112-跨域泛化实测换了第二个域的数据集)）：  
 > 新闻支线 DAPT 版本 +0.17 pt，与股吧支线的 −0.14 pt **符号相反**，同样落在噪声内。  
 > 两条独立支线都指向"无效"，比单支线更有说服力。
 >
 > ⚠️ **注意**：股吧域指标看起来比线上模型的新闻域指标低，是因为**两者测的是不同测试集**，  
-> 不能直接比。同一测试集上的对比见 10.2 的跨域矩阵。
+> 不能直接比。同一测试集上的对比见 11.2 的跨域矩阵。
 
 **DAPT 域自适应预训练（6,250 优化步，1 epoch）**
 
@@ -504,7 +582,7 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 
 ---
 
-### 10.2 跨域泛化实测（换了第二个域的数据集）
+### 11.2 跨域泛化实测（换了第二个域的数据集）
 
 前面的「已知局限」只是**推测**说"泛化到个股新闻会打折"。为了拿到实证，  
 引入一份**完全独立**的中文财经新闻标注集做跨域评测。
@@ -513,6 +591,7 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 | -------------------- | ---------------------------------------------- | ------ | -------------- |
 | 股吧标题                 | `HikasaHana/eastmoney_guba_title`              | 10,646 | 散户口语，均值 20.6 字 |
 | **财经新闻**（FLAME 中文子集） | `Kenpache/multilingual-financial-sentiment-v2` | 14,680 | 媒体书面，均值 29.1 字 |
+
 
 > FLAME 的特点是**按本国投资者视角标注**（中文子集即"中国投资者怎么看"），与股吧场景口径一致；  
 > 与股吧语料零重叠，与 DAPT 语料不同源。其中 38.7% 为繁体，已用 `zhconv` 统一转简体。
@@ -551,7 +630,7 @@ BERT-base 短文本在 CPU 上约 20~60ms/条。批量预测（`/api/sentiment_p
 
 ---
 
-## 十一、复现训练链路
+## 十二、复现训练链路
 
 适合自己重训模型，或做实训报告里的实验复现。**先完成 [二、步骤 2](#步骤-2--建-python-环境) 的环境搭建**。
 
@@ -588,7 +667,6 @@ python train_dapt.py --model models/bert-base-chinese ^
 #       所以改用 HTTP Range 只取文件头部（镜像支持 206）。
 ```
 
-
 ```bash
 # ④ LoRA 微调（2 底座 × 2 数据域 = 4 个变体，超参完全相同）
 #    线上模型 = 变体 D
@@ -619,7 +697,7 @@ python eval_cross_domain.py ^
 
 ---
 
-## 十二、发布模型到 Hugging Face
+## 十三、发布模型到 Hugging Face
 
 > ⚠️ **必须在能访问 `huggingface.co` 的机器上执行。**  
 > `hf-mirror.com` 只支持下载，**不支持上传**；国内部分网络 `huggingface.co` 会被 DNS 污染而不可达。
@@ -636,18 +714,16 @@ set HF_TOKEN=hf_xxxxxxxx          # Windows
 python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --check
 
 # 3. 正式上传（自动生成 Model Card，含真实指标）
-python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame
+python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --gh-owner Jwwws
 
 #    连 DAPT 底座一起传（+390MB，便于他人完整复现）
-python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame --include-dapt-base
+python upload_to_hf.py --repo Roeyyyyyy/quantmind-sentiment-dapt-flame \
+    --include-dapt-base --gh-owner Jwwws
 ```
 
-> `--gh-owner` 决定 Model Card 里的 GitHub 链接指向谁，不指定时用项目默认
-> `tt888777`（脚本内的 `DEFAULT_GH_OWNER`）。
-> ⚠️ 本项目的 **HF 账号（`Roeyyyyyy`）与 GitHub 账号不同名**，所以这个默认值不能取 HF 用户名，
-> 否则模型卡会指向一个不存在的仓库。要指向别的账号就显式写 `--gh-owner <用户名>`。
-> 二次上传是**幂等**的：内容未变的文件（如 390MB 的 `model.safetensors`）会被跳过，
-> 只重传 Model Card 只需几秒。
+> `--gh-owner` 决定 Model Card 里 GitHub 链接指向谁。**务必显式指定**，  
+> 否则会默认用 HF 用户名（本项目的 HF 账号与 GitHub 账号不同名）。  
+> 二次上传是幂等的：内容未变的文件（如 390MB 的 `model.safetensors`）会被跳过。
 
 上传后仓库结构：
 

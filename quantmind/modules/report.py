@@ -252,10 +252,14 @@ def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
         "win_rate": bt.get("win_rate"),
         "sharpe": bt.get("sharpe"),
         "trade_count": bt.get("trade_count"),
+        "round_trips": bt.get("round_trips"),
         "sentiment_filtered": bt.get("sentiment_filtered"),
         "sentiment_active": bt.get("sentiment_active"),
         "sentiment_blocked": bt.get("sentiment_blocked"),
         "buy_signals": bt.get("buy_signals"),
+        "sentiment_dynamic": bt.get("sentiment_dynamic"),
+        "target_ratio": bt.get("target_ratio"),
+        "avg_exposure_pct": bt.get("avg_exposure_pct"),
         "profit_loss_ratio": tstats["profit_loss_ratio"],
         "max_consec_loss": tstats["max_consec_loss"],
         "avg_hold_days": tstats["avg_hold_days"],
@@ -351,8 +355,20 @@ def template_risks(data: dict, tpl: dict) -> list[str]:
             out.append(
                 f"舆情事件识别覆盖率仅 {cov}%（{m.get('other_ratio')}% 的新闻无法归类到具体事件），"
                 "事件粒度偏粗，舆情信号对交易的约束力可能被高估。")
-        # 舆情是否真的参与交易、拦下过信号 —— 这点必须写清楚，否则容易被误读
-        if m.get("sentiment_active") is False:
+        # 舆情是否真的参与交易、以什么方式参与 —— 这点必须写清楚，否则容易被误读
+        if m.get("sentiment_dynamic"):
+            tr = m.get("target_ratio")
+            exp = m.get("avg_exposure_pct")
+            if tr is not None:
+                line = (f"舆情按动态仓位参与决策：情绪指数 {idx}（{m.get('sentiment_label')}）"
+                        f"对应目标仓位 {tr}%")
+                if exp is not None:
+                    line += f"，考虑空仓期后的日均实际仓位 {exp}%"
+                out.append(line + "。仓位随情绪档位缩放，而非简单的买入/不买入开关。")
+            if tr is not None and tr <= 0:
+                out.append("当前情绪档位对应目标仓位为 0，区间内所有买入信号均被放弃，"
+                           "策略实际处于全程空仓，收益不代表策略真实能力。")
+        elif m.get("sentiment_active") is False:
             out.append("本次回测未启用舆情约束，情绪指标仅作展示，未参与买卖决策。")
         elif m.get("sentiment_active"):
             bs = m.get("buy_signals") or 0
@@ -394,9 +410,23 @@ def _risks(data: dict, tpl: dict, allow_llm: bool = True) -> list[str]:
             out = []
             if res.get("summary"):
                 out.append(res["summary"])
-            out.extend(res.get("risks") or [])
+            llm_risks = res.get("risks") or []
+            out.extend(llm_risks)
             note = (f"上述分析由大模型 {meta.get('model')} 生成，"
                     "数字均已与回测结果核对；内容仅供参考，不构成投资建议。")
+            if not llm_risks:
+                # 实测模型偶尔只给 summary、不给条目（dropped 也为空，是它自己没写）。
+                # 这时用模板风险补齐，避免报告只剩一段话、看起来像没做风险提示。
+                # 优先补"实质性"那条（舆情仓位/回撤/踏空），跳过免责声明式的套话。
+                _last_risk_source["meta"]["risks_from_template"] = True
+                generic = ("舆情研判由 AI/关键词模型生成", "双均线策略为趋势跟踪型",
+                           "本报告基于历史数据回测")
+                body = [r for r in fallback
+                        if r and not any(r.startswith(g) for g in generic)]
+                # 舆情仓位那条最贴本次改动，优先放到前面
+                body.sort(key=lambda r: 0 if r.startswith(("舆情按动态仓位", "本次回测未启用",
+                                                           "舆情约束虽已启用")) else 1)
+                out.extend(body[:2])
             return out + [note]
         _last_risk_source["engine"] = "template"
         _last_risk_source["meta"] = {"error": meta.get("error")}

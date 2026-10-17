@@ -745,6 +745,12 @@ body{
               <div class="field"><label>策略模板</label>
                 <select class="select" id="stratSel"><option>双均线交叉</option><option>动量策略</option><option>布林带突破</option><option>双均线+情绪过滤</option></select>
               </div>
+              <div class="field"><label>仓位管理</label>
+                <select class="select" id="btPosMode">
+                  <option value="dynamic" selected>舆情动态仓位（按情绪分档）</option>
+                  <option value="full">固定满仓（旧逻辑）</option>
+                </select>
+              </div>
               <div class="field"><label>标的</label><input class="input" id="btStockInput" value="" readonly placeholder="从顶部选择"></div>
               <div class="row" style="gap:8px;margin-bottom:14px">
                 <div class="field" style="flex:1;margin:0"><label>短均线</label><input class="input" value="5" style="text-align:center"></div>
@@ -774,11 +780,12 @@ body{
           </div>
 
           <div>
-            <div class="bento" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+            <div class="bento" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
               <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">年化收益</div><div style="font-size:21px;font-weight:600" id="btCardAnnual">—</div></div>
               <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">最大回撤</div><div style="font-size:21px;font-weight:600" id="btCardDrawdown">—</div></div>
               <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">胜率</div><div style="font-size:21px;font-weight:600" id="btCardWinrate">—</div></div>
               <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">夏普比率</div><div style="font-size:21px;font-weight:600" id="btCardSharpe">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">舆情目标仓位</div><div style="font-size:21px;font-weight:600" id="btCardPos">—</div></div>
             </div>
             <div class="card" style="margin-bottom:16px">
               <div class="section-title">资金曲线 <span class="tag">US-010</span></div>
@@ -1729,16 +1736,28 @@ if(runBt)runBt.addEventListener('click',async()=>{
     const sd=document.getElementById('btStartDate')?.value||'';
     const ed=document.getElementById('btEndDate')?.value||'';
     btParams={short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed};
-    const r=await callAPI('/backtest',{stock_code:sc,short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed});
+    const posMode=document.getElementById('btPosMode')?.value||'dynamic';
+    const r=await callAPI('/backtest',{stock_code:sc,short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed,
+      sentiment_dynamic:posMode==='dynamic'});
     bar.style.width='100%';
     if(!r.ok){st.textContent=r.msg;logActivity('量化回测','回测失败 '+sc+'：'+r.msg,'fail');return}
-    st.textContent=`回测完成 · 年化 ${r.annual_return}% · 夏普 ${r.sharpe}`;
-    logActivity('量化回测',`回测 ${sc}(${sd}~${ed})：年化${r.annual_return}% 回撤${r.max_drawdown}% 夏普${r.sharpe} ${r.trade_count}笔`,'ok');
+    st.textContent=`回测完成 · 年化 ${r.annual_return}% · 夏普 ${r.sharpe}`
+      +(r.sentiment_dynamic&&r.target_ratio!=null?` · 舆情目标仓位 ${r.target_ratio}%`:'');
+    logActivity('量化回测',`回测 ${sc}(${sd}~${ed})：年化${r.annual_return}% 回撤${r.max_drawdown}% 夏普${r.sharpe} ${r.trade_count}笔`
+      +(r.sentiment_dynamic&&r.target_ratio!=null?`，舆情${r.sentiment_index}分→目标仓位${r.target_ratio}%（日均实际${r.avg_exposure_pct}%）`:''),'ok');
     const elA=document.getElementById('btCardAnnual'),elD=document.getElementById('btCardDrawdown'),elW=document.getElementById('btCardWinrate'),elS=document.getElementById('btCardSharpe');
     if(elA){elA.textContent=`${r.annual_return>0?'+':''}${r.annual_return}%`;elA.className=r.annual_return>0?'up':'down'}
     if(elD)elD.textContent=`${r.max_drawdown}%`;
     if(elW)elW.textContent=`${r.win_rate}%`;
     if(elS)elS.textContent=r.sharpe;
+    const elP=document.getElementById('btCardPos');
+    if(elP){
+      if(r.sentiment_dynamic&&r.target_ratio!=null){
+        elP.textContent=`${r.target_ratio}%`;
+        elP.title=`情绪指数 ${r.sentiment_index} → 目标仓位 ${r.target_ratio}%，日均实际 ${r.avg_exposure_pct}%`;
+        elP.className=r.target_ratio>0?'up':'down';
+      }else{elP.textContent='满仓';elP.title='固定满仓（未按舆情分档）';elP.className=''}
+    }
     const ec=ensure('chartEquity');if(ec&&r.equity_curve&&r.equity_curve.length){
       ec.setOption({backgroundColor:'transparent',
         tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},

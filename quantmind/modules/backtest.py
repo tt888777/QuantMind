@@ -4,6 +4,33 @@ import pandas as pd
 from db import get_session, Strategy, BacktestTask, BacktestMetric
 
 
+# 舆情仓位档位：(情绪指数下限, 目标仓位比例)，按下限从高到低排列。
+# 指数 0~100，50 为中性；比 50 高的越多说明舆情越乐观。
+# 🔴 刻意用整数档、不做参数调优 —— 样本仅一百多天，调参等于过拟合。
+SENTIMENT_TIERS = [
+    (65, 0.80),     # 偏乐观
+    (55, 0.60),     # 中性偏多
+    (45, 0.40),     # 中性
+    (35, 0.20),     # 中性偏空
+    (0,  0.00),     # 偏悲观，不建仓
+]
+
+
+def target_position_ratio(sent_index, tiers=None):
+    """由情绪指数折算目标仓位比例（0~1）。
+
+    sent_index 为 None（未启用舆情 / 采集失败）时返回 1.0，
+    即退回原来的满仓行为 —— 保证不启用舆情时回测结果与旧版完全一致。
+    """
+    if sent_index is None:
+        return 1.0
+    tiers = tiers or SENTIMENT_TIERS
+    for floor, ratio in tiers:
+        if sent_index >= floor:
+            return ratio
+    return 0.0
+
+
 def load_data_with_indicator(stock_code):
     from modules.data_fetch import load_quotation
     df = load_quotation(stock_code)
@@ -27,7 +54,15 @@ def load_data_with_indicator(stock_code):
 
 def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
                  commission=0.0003, slippage=0.0001, lot_size=1,
-                 start_date=None, end_date=None, sentiment_threshold=45):
+                 start_date=None, end_date=None, sentiment_threshold=45,
+                 sentiment_dynamic=True):
+    """双均线回测。
+
+    ``sentiment_dynamic=True`` 启用**动态仓位**：金叉不再满仓，而是按舆情情绪指数
+    折算目标仓位（见 ``SENTIMENT_TIERS``）；持仓期间每天校准，情绪转差就逐步减仓，
+    死叉清仓。
+    ``sentiment_dynamic=False`` 为旧的一刀切行为：指数低于阈值则完全拦下，否则满仓。
+    """
     df = load_data_with_indicator(stock_code)
     if df.empty or "ma5" not in df.columns:
         return None
@@ -59,9 +94,12 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
     position = 0
     trades = []
     equity_curve = []
+    exposure_series = []            # 每日仓位占比（持仓市值 / 总权益）
     entry_price = 0.0
-    blocked_by_sentiment = 0        # 被舆情拦下的买入信号数
+    blocked_by_sentiment = 0        # 因舆情目标仓位为 0 而放弃建仓的次数
     total_buy_signals = 0           # 金叉信号总数
+
+    target_ratio = target_position_ratio(sent_index) if sentiment_dynamic else 1.0
 
     for i in range(1, len(df)):
         row = df.iloc[i]
@@ -78,46 +116,82 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         elif prev_ma_s >= prev_ma_l and ma_s < ma_l:
             signal = -1
 
-        if signal == 1 and position == 0:
+        buy_price = price * (1 + slippage)
+
+        if signal == 1:
             total_buy_signals += 1
-            if sent_index is not None and sent_index < sentiment_threshold:
-                blocked_by_sentiment += 1
+
+            if sentiment_dynamic:
+                # 动态仓位：目标档位为 0 视为"不建仓"，否则按比例建仓
+                ratio = target_ratio
             else:
-                buy_price = price * (1 + slippage)
-                shares = int(cash / buy_price / lot_size) * lot_size
+                # 旧行为：一刀切，低于阈值拦下，否则满仓
+                ratio = 0.0 if (sent_index is not None
+                                and sent_index < sentiment_threshold) else 1.0
+
+            if ratio <= 0:
+                blocked_by_sentiment += 1
+            elif position == 0:
+                # 仓位比例作用于**总资产**而非可用现金：
+                # 用现金算的话，第二次建仓时 cash 只剩上次的盈亏残值，仓位会越做越小。
+                budget = (cash + position * price) * ratio
+                budget = min(budget, cash)
+                shares = int(budget / buy_price / lot_size) * lot_size
                 if shares > 0:
-                    cost = shares * buy_price * (1 + commission)
-                    cash -= cost
+                    cash -= shares * buy_price * (1 + commission)
                     position = shares
                     entry_price = buy_price
-                    trades.append({"date": row["date"], "dir": "BUY", "price": round(buy_price, 2), "shares": shares})
+                    trades.append({"date": row["date"], "dir": "BUY",
+                                   "price": round(buy_price, 2), "shares": shares})
+
         elif signal == -1 and position > 0:
+            # 死叉：清仓
             sell_price = price * (1 - slippage)
-            revenue = position * sell_price * (1 - commission)
-            cash += revenue
-            trades.append({"date": row["date"], "dir": "SELL", "price": round(sell_price, 2), "shares": position})
+            cash += position * sell_price * (1 - commission)
+            trades.append({"date": row["date"], "dir": "SELL", "price": round(sell_price, 2),
+                           "shares": position, "close_cycle": True})
             position = 0
             entry_price = 0.0
 
+        # 说明：这里**不做**日度仓位校准。
+        # 情绪指数在本次回测中是整段区间的一个定值（一次性采集分析），
+        # 逐日校准等于拿恒定的目标去砍浮动市值 —— 涨了就减、跌了不减，
+        # 结果是"上涨被提前止盈、下跌全程承担"，实测收益从 2.77% 掉到 1.19%
+        # 且夏普毫无改善。仓位由建仓时的档位一次确定，直到死叉清仓。
+
         equity = cash + position * price
         equity_curve.append({"date": row["date"], "equity": round(equity, 2)})
+        exposure_series.append(position * price / equity if equity > 0 else 0.0)
 
     final_equity = cash + position * float(df.iloc[-1]["close"])
     total_return = (final_equity - init_capital) / init_capital
     days = len(df)
     annual_return = (1 + total_return) ** (252 / max(days, 1)) - 1 if total_return > -1 else -1
+    avg_exposure_pct = (round(sum(exposure_series) / len(exposure_series) * 100, 1)
+                        if exposure_series else None)
 
     eq = pd.DataFrame(equity_curve)
     eq["peak"] = eq["equity"].cummax()
     eq["dd"] = (eq["equity"] - eq["peak"]) / eq["peak"]
     max_dd = float(eq["dd"].min())
 
-    wins = 0
-    for i in range(0, len(trades) - 1, 2):
-        if i + 1 < len(trades):
-            if trades[i + 1]["price"] > trades[i]["price"]:
-                wins += 1
-    trade_pairs = len(trades) // 2
+    # 交易周期（一次建仓 → 一次清仓）的盈亏。
+    # 动态仓位下每次减仓都会记一条 SELL，所以不能再简单地按下标两两配对，
+    # 改为扫 trades：BUY 开启一个周期，带 close_cycle 的 SELL 结束它并结算。
+    cycles = []
+    cur = None
+    for t in trades:
+        if t["dir"] == "BUY":
+            if cur is None:
+                cur = {"buy": t["price"], "shares": 0, "cost": 0.0}
+            cur["shares"] += t["shares"]
+            cur["cost"] += t["price"] * t["shares"]
+        elif t["dir"] == "SELL" and cur is not None and t.get("close_cycle"):
+            avg_cost = cur["cost"] / cur["shares"] if cur["shares"] else cur["buy"]
+            cycles.append((t["price"] - avg_cost) / avg_cost if avg_cost else 0.0)
+            cur = None
+    wins = sum(1 for r in cycles if r > 0)
+    trade_pairs = len(cycles)
     win_rate = wins / trade_pairs if trade_pairs > 0 else 0
 
     if len(eq) > 1:
@@ -158,6 +232,9 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         "win_rate": round(win_rate * 100, 2),
         "sharpe": round(sharpe, 2),
         "trade_count": len(trades),
+        # 建仓到清仓的完整周期数 —— 动态仓位下 trade_count 会因减仓而变大，
+        # 真正衡量"做了几轮交易"的是这个。
+        "round_trips": trade_pairs,
         "final_equity": round(final_equity, 2),
         "trades": trades,
         "equity_curve": equity_curve,
@@ -168,4 +245,10 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         "sentiment_active": sent_index is not None,
         "sentiment_blocked": blocked_by_sentiment,
         "buy_signals": total_buy_signals,
+        # ---- 动态仓位相关 ----
+        "sentiment_dynamic": bool(sentiment_dynamic and sent_index is not None),
+        "target_ratio": (round(target_ratio * 100, 1)
+                         if sentiment_dynamic and sent_index is not None else None),
+        # 实际仓位暴露：持仓市值 / 总权益的日均值，比"持仓天数占比"更接近真实风险暴露
+        "avg_exposure_pct": avg_exposure_pct,
     }

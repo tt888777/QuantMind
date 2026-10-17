@@ -187,8 +187,12 @@ def api_backtest():
     cap = float(d.get('init_capital', 100000))
     sd = d.get('start_date', '')
     ed = d.get('end_date', '')
+    # sentiment_dynamic 默认开启；传 false 可回到旧的「一刀切满仓」行为做对比
+    dyn = d.get('sentiment_dynamic')
+    dyn = True if dyn is None else bool(dyn)
     bt = run_backtest(sc, short=short, long_=long_, init_capital=cap,
-                      start_date=sd if sd else None, end_date=ed if ed else None)
+                      start_date=sd if sd else None, end_date=ed if ed else None,
+                      sentiment_dynamic=dyn)
     if not bt:
         return jsonify({'ok': False, 'msg': '回测失败：数据不足，请先生成数据'})
     trades = []
@@ -204,6 +208,11 @@ def api_backtest():
         'win_rate': bt['win_rate'],
         'sharpe': bt['sharpe'],
         'trade_count': bt['trade_count'],
+        'round_trips': bt.get('round_trips'),
+        'sentiment_dynamic': bt.get('sentiment_dynamic'),
+        'sentiment_index': bt.get('sentiment_index'),
+        'target_ratio': bt.get('target_ratio'),
+        'avg_exposure_pct': bt.get('avg_exposure_pct'),
         'trades': trades,
         'equity_curve': equity,
         'init_capital': cap,

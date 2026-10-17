@@ -1,0 +1,56 @@
+{
+  "min_1m_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.43
+  },
+  "min_5m_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.43
+  },
+  "min_15m_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.43
+  },
+  "min_30m_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.48
+  },
+  "min_60m_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.43
+  },
+  "min_5m_sina": {
+    "ok": true,
+    "rows": 1970,
+    "cols": [
+      "day",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ],
+    "elapsed": 1.96
+  },
+  "intraday_today": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.43
+  },
+  "bid_ask_tick": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.42
+  },
+  "daily_em": {
+    "ok": false,
+    "error": "ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "elapsed": 0.44
+  }
+}

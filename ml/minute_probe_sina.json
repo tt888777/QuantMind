@@ -1,0 +1,90 @@
+{
+  "5": {
+    "ok": true,
+    "rows": 1970,
+    "days": 42,
+    "first": "2026-08-12 14:55:00",
+    "last": "2026-10-16 15:00:00",
+    "elapsed": 1.77,
+    "cols": [
+      "day",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ]
+  },
+  "15": {
+    "ok": true,
+    "rows": 1970,
+    "days": 124,
+    "first": "2026-04-14 14:45:00",
+    "last": "2026-10-16 15:00:00",
+    "elapsed": 1.73,
+    "cols": [
+      "day",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ]
+  },
+  "30": {
+    "ok": true,
+    "rows": 1970,
+    "days": 247,
+    "first": "2025-10-10 14:30:00",
+    "last": "2026-10-16 15:00:00",
+    "elapsed": 1.69,
+    "cols": [
+      "day",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ]
+  },
+  "60": {
+    "ok": true,
+    "rows": 1970,
+    "days": 493,
+    "first": "2024-09-30 14:00:00",
+    "last": "2026-10-16 15:00:00",
+    "elapsed": 1.7,
+    "cols": [
+      "day",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ]
+  },
+  "sh600519": {
+    "rows": 1970,
+    "days": 42,
+    "elapsed": 1.72
+  },
+  "sh601318": {
+    "rows": 1970,
+    "days": 42,
+    "elapsed": 2.01
+  },
+  "sz000001": {
+    "rows": 1970,
+    "days": 42,
+    "elapsed": 2.02
+  },
+  "sz300750": {
+    "rows": 1970,
+    "days": 42,
+    "elapsed": 1.88
+  }
+}

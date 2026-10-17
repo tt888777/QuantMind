@@ -1,0 +1,68 @@
+{
+  "30m_dual_ma": {
+    "bars": 1970,
+    "trades": 131,
+    "return": -6.3,
+    "return_before_fee": 3.7,
+    "fee_drag": 10.0,
+    "max_dd": 18.52,
+    "sharpe": -0.12,
+    "fees": 9997.23,
+    "days": 247
+  },
+  "30m_boll": {
+    "bars": 1970,
+    "trades": 51,
+    "return": -0.69,
+    "return_before_fee": 3.48,
+    "fee_drag": 4.17,
+    "max_dd": 16.31,
+    "sharpe": 0.0,
+    "fees": 4169.16,
+    "days": 247
+  },
+  "30m_momentum": {
+    "bars": 1970,
+    "trades": 201,
+    "return": -12.76,
+    "return_before_fee": 2.33,
+    "fee_drag": 15.09,
+    "max_dd": 23.28,
+    "sharpe": -0.27,
+    "fees": 15090.43,
+    "days": 247
+  },
+  "60m_dual_ma": {
+    "bars": 1970,
+    "trades": 115,
+    "return": -6.55,
+    "return_before_fee": 1.79,
+    "fee_drag": 8.34,
+    "max_dd": 23.03,
+    "sharpe": -0.09,
+    "fees": 8340.93,
+    "days": 493
+  },
+  "60m_boll": {
+    "bars": 1970,
+    "trades": 63,
+    "return": -7.33,
+    "return_before_fee": -2.91,
+    "fee_drag": 4.42,
+    "max_dd": 24.11,
+    "sharpe": -0.14,
+    "fees": 4418.34,
+    "days": 493
+  },
+  "60m_momentum": {
+    "bars": 1970,
+    "trades": 167,
+    "return": -13.03,
+    "return_before_fee": -0.71,
+    "fee_drag": 12.33,
+    "max_dd": 21.79,
+    "sharpe": -0.2,
+    "fees": 12327.26,
+    "days": 493
+  }
+}

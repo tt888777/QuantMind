@@ -115,6 +115,83 @@ body{
 .btn-primary:hover{box-shadow:0 0 26px var(--glow-indigo);transform:translateY(-1px)}
 .btn-ghost{background:transparent}
 .btn-sm{padding:6px 11px;font-size:12px}
+/* 流水线预设按钮 */
+.preset-btn{padding:4px 10px;font-size:11.5px;border-radius:7px;color:var(--muted);border:1px solid var(--border)}
+.preset-btn:hover{color:var(--text);border-color:var(--border-strong)}
+.preset-btn.active{color:#fff;background:rgba(99,102,241,.16);border-color:rgba(99,102,241,.45)}
+
+/* 报告预览 iframe */
+.report-frame-wrap{position:relative;height:520px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.report-frame{width:100%;height:100%;border:0;display:block;background:#fff}
+.report-frame-mask{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;background:rgba(10,10,11,.92);color:var(--muted);font-size:12.5px;transition:.2s}
+.report-frame-mask.off{opacity:0;pointer-events:none}
+.spinner{width:26px;height:26px;border:2px solid rgba(255,255,255,.14);border-top-color:var(--indigo);
+  border-radius:50%;animation:qmspin .8s linear infinite}
+@keyframes qmspin{to{transform:rotate(360deg)}}
+
+/* 通用弹窗 */
+.modal-mask{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.62);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;padding:24px}
+.modal-mask.on{display:flex}
+.modal{width:100%;max-width:760px;max-height:86vh;overflow:auto;background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:16px;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+.modal-head{display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:var(--surface);z-index:1}
+.modal-title{font-size:15px;font-weight:600}
+.modal-body{padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:16px 22px;border-top:1px solid var(--border);
+  position:sticky;bottom:0;background:var(--surface)}
+.tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:720px){.tpl-grid{grid-template-columns:1fr}}
+.tpl-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:26px;height:26px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:.15s}
+.swatch:hover{transform:translateY(-1px)}
+.swatch.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
+.tpl-sec{display:flex;flex-wrap:wrap;gap:8px}
+.tpl-sec label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);
+  padding:6px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface-2)}
+.tpl-sec label input{accent-color:var(--indigo)}
+.tpl-msg{font-size:11.5px;color:var(--muted);min-height:16px}
+.tpl-msg.err{color:#F87171}.tpl-msg.ok{color:#4ADE80}
+
+/* 风险提示对比面板 */
+.risk-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:980px){.risk-compare{grid-template-columns:1fr}}
+.risk-col{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-2)}
+.risk-col-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin-bottom:10px}
+.risk-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.risk-list li{font-size:12px;line-height:1.75;color:var(--muted)}
+.risk-list-llm li{border-left:2px solid rgba(168,85,247,.55);padding-left:10px;margin-left:-16px;color:#DDD8E8}
+.risk-empty{list-style:none;margin-left:-16px;color:var(--dim);font-style:italic}
+.risk-list li.risk-note{list-style:none;margin-left:-16px;font-size:11px;color:var(--dim);
+  border-top:1px dashed var(--border);padding-top:8px}
+.risk-summary{font-size:12px;line-height:1.85;color:var(--text);background:rgba(168,85,247,.08);
+  border-left:2px solid rgba(168,85,247,.55);border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:12px}
+
+/* 大模型配置弹窗 */
+.llm-prov{display:flex;gap:8px;flex-wrap:wrap}
+.llm-prov button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+  color:var(--text);cursor:pointer;font-size:12px;transition:.15s;min-width:104px}
+.llm-prov button small{font-size:10px;color:var(--dim);font-weight:400}
+.llm-prov button:hover{border-color:var(--indigo)}
+.llm-prov button.active{border-color:var(--indigo);background:rgba(99,102,241,.12);
+  box-shadow:0 0 0 1px var(--indigo) inset}
+.key-wrap{position:relative;display:flex;align-items:center}
+.key-wrap .input{padding-right:64px}
+.key-wrap button{position:absolute;right:6px;background:none;border:none;color:var(--dim);
+  font-size:11px;cursor:pointer;padding:4px 6px;border-radius:6px}
+.key-wrap button:hover{color:var(--text);background:var(--surface-2)}
+.llm-hint{font-size:11px;color:var(--dim);line-height:1.7}
+.llm-hint code{background:var(--surface-2);padding:1px 5px;border-radius:4px;
+  font-family:ui-monospace,Consolas,monospace;font-size:10.5px}
+.llm-switch{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)}
+.llm-switch input{width:15px;height:15px;accent-color:var(--indigo);cursor:pointer}
+.llm-lock{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+  border:1px dashed var(--border);border-radius:10px;padding:12px 14px;background:var(--surface-2)}
+.risk-loading{color:var(--dim);font-style:italic;list-style:none;margin-left:-16px}
 .btn svg{width:15px;height:15px}
 
 /* table */
@@ -735,6 +812,18 @@ body{
           <div class="card">
             <div class="section-title">可勾选分析步骤 <span class="tag">US-014</span></div>
             <div style="display:flex;flex-direction:column;gap:10px" id="stepList">
+              <div class="step on" data-step="fetch">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">行情获取</div>
+                  <div class="step-d">检测已有日线数据 · 缺失时自动生成 250 条样本</div>
+                </div>
+              </div>
+              <div class="step" data-step="clean">
+                <div class="cbox"></div><div class="step-body">
+                  <div class="step-h">数据清洗</div>
+                  <div class="step-d">去重 · 缺失值修复 · 异常值校验</div>
+                </div>
+              </div>
               <div class="step on" data-step="indicator">
                 <div class="cbox"></div><div class="step-body">
                   <div class="step-h">计算技术指标</div>
@@ -775,7 +864,7 @@ body{
               </div>
             </div>
             <div class="row" style="margin-top:16px;justify-content:space-between;align-items:center">
-              <div class="kvs"><span class="kv">预设：<b>快速预览</b></span><span class="kv">完整回测</span><span class="kv">仅舆情</span></div>
+              <div class="kvs" id="presetBar"><span class="kv" style="color:var(--dim)">预设：</span><button class="btn btn-ghost btn-sm preset-btn" data-preset="quick">快速预览</button><button class="btn btn-ghost btn-sm preset-btn" data-preset="full">完整回测</button><button class="btn btn-ghost btn-sm preset-btn" data-preset="sentiment">仅舆情</button></div>
               <button class="btn btn-primary" id="runPipeline">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg>
                 执行所选步骤
@@ -806,26 +895,25 @@ body{
 
         <div class="grid" style="grid-template-columns:1.3fr .7fr">
           <div class="card">
-            <div class="section-title">报告预览 <span class="tag">US-011</span></div>
-            <div style="border:1px solid var(--border);border-radius;overflow:hidden">
-              <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--surface-2)">
-                <div style="font-size:16px;font-weight:600" id="reportTitle">综合量化分析报告</div>
-                <div style="font-size:11.5px;color:var(--muted);margin-top:4px" id="reportSubtitle">点击「导出 HTML」生成报告</div>
-              </div>
-              <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
-                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">① 行情概览</div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportOverview">点击「导出 HTML」生成真实报告</div></div>
-                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">② 策略逻辑</div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportStrategy">双均线(5/20)交叉信号 + 情绪指数过滤买入（低于45拒绝买入），含手续费/滑点。</div></div>
-                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">③ 回测绩效</div>
-                  <div class="kvs" id="reportPerf"><span class="kv">年化 <b>—</b></span><span class="kv">回撤 <b>—</b></span><span class="kv">胜率 <b>—</b></span><span class="kv">夏普 <b>—</b></span></div>
-                </div>
-                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--indigo)">④ 舆情摘要 <span class="tag-ai">AI</span></div><div style="font-size:12px;color:var(--muted);line-height:1.6" id="reportSentiment">点击「导出 HTML」生成真实报告</div></div>
-                <div><div style="font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--amber)">⑤ 风险提示</div><div style="font-size:12px;color:var(--muted);line-height:1.8" id="reportRisk">本报告基于历史数据回测，历史表现不代表未来收益；舆情研判由 AI 生成，仅供参考。</div></div>
+            <div class="section-title">报告预览 <span class="tag">US-011</span>
+              <span style="margin-left:auto;font-size:11.5px;color:var(--muted)" id="reportPreviewHint">生成中…</span>
+            </div>
+            <!-- 真实预览：iframe 渲染后端产出的报告 HTML（与导出文件完全同一份） -->
+            <div class="report-frame-wrap">
+              <iframe id="reportFrame" class="report-frame" title="报告预览"></iframe>
+              <div class="report-frame-mask" id="reportFrameMask">
+                <div class="spinner"></div><div>正在生成报告预览…</div>
               </div>
             </div>
-            <div class="row" style="margin-top:14px;gap:8px">
+            <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">
               <button class="btn btn-primary btn-sm" id="btnReportPdf">导出 PDF</button>
               <button class="btn btn-sm" id="btnReportHtml">导出 HTML</button>
-              <button class="btn btn-ghost btn-sm">编辑模板</button>
+              <button class="btn btn-ghost btn-sm" id="btnReportTpl">编辑模板</button>
+              <button class="btn btn-ghost btn-sm" id="btnReportRefresh" title="按当前行情与区间重新生成预览">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/></svg>
+                刷新预览
+              </button>
+              <span style="margin-left:auto;font-size:11px;color:var(--dim)" id="reportEngineHint"></span>
             </div>
           </div>
 
@@ -840,6 +928,35 @@ body{
               </table>
             </div>
           </div>
+        </div>
+
+        <!-- ===== 风险提示引擎：模板 vs 大模型 ===== -->
+        <div class="card" style="margin-top:16px">
+          <div class="section-title">风险提示引擎 <span class="tag-ai">LLM</span>
+            <span class="badge b-gray" id="riskEngStatus" style="margin-left:auto">检测中…</span>
+          </div>
+          <div class="page-desc" style="margin-bottom:12px">
+            模板版由规则生成，永远可用；大模型版基于同一份回测事实撰写，并做数值核实。
+            大模型不可用时报告**自动降级**为模板版，不会失败。
+          </div>
+          <div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="btn btn-sm" id="btnRiskGen">生成并对比</button>
+            <button class="btn btn-ghost btn-sm" id="btnRiskProbe">测试连接</button>
+            <button class="btn btn-ghost btn-sm" id="btnRiskConfig">配置</button>
+            <span style="font-size:11.5px;color:var(--dim)" id="riskEngHint"></span>
+          </div>
+          <div class="risk-compare">
+            <div class="risk-col">
+              <div class="risk-col-h">模板版 <span class="badge b-gray">规则</span></div>
+              <ul class="risk-list" id="riskTplList"><li class="risk-empty">点击「生成并对比」查看</li></ul>
+            </div>
+            <div class="risk-col">
+              <div class="risk-col-h">大模型版 <span class="badge b-gray" id="riskLlmBadge">未调用</span></div>
+              <div class="risk-summary" id="riskLlmSummary" style="display:none"></div>
+              <ul class="risk-list risk-list-llm" id="riskLlmList"><li class="risk-empty">点击「生成并对比」查看</li></ul>
+            </div>
+          </div>
+          <div class="tpl-msg" id="riskMsg"></div>
         </div>
       </section>
 
@@ -919,6 +1036,141 @@ body{
 
     </div>
   </main>
+</div>
+
+<!-- ===== 报告模板编辑弹窗 ===== -->
+<div class="modal-mask" id="tplModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">编辑报告模板</div>
+      <span style="font-size:11.5px;color:var(--muted)">保存后立即作用于 HTML / PDF 导出</span>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto" id="tplClose" title="关闭（Esc）">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tpl-grid">
+        <div class="field" style="margin:0">
+          <label>报告标题 <span style="color:var(--dim)">可用 {stock} {date}</span></label>
+          <input class="input" id="tplTitle" placeholder="{stock} 综合量化分析报告">
+        </div>
+        <div class="field" style="margin:0">
+          <label>副标题</label>
+          <input class="input" id="tplSubtitle" placeholder="QuantMind 智能量化分析平台 · 自动生成">
+        </div>
+        <div class="field" style="margin:0">
+          <label>公司 / 机构名</label>
+          <input class="input" id="tplCompany" placeholder="QuantMind">
+        </div>
+        <div class="field" style="margin:0">
+          <label>作者 <span style="color:var(--dim)">· 选填</span></label>
+          <input class="input" id="tplAuthor" placeholder="留空则不显示">
+        </div>
+      </div>
+
+      <div class="tpl-row"><span style="width:56px;flex-shrink:0">主题色</span>
+        <div class="swatches" id="tplThemes"></div>
+      </div>
+
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">显示章节</div>
+        <div class="tpl-sec" id="tplSections"></div>
+      </div>
+
+      <div class="field" style="margin:0">
+        <label>自定义风险提示 <span style="color:var(--dim)">· 每行一条，追加在内置条目之后</span></label>
+        <textarea class="input" id="tplRisks" rows="3" style="resize:vertical;line-height:1.6"
+          placeholder="例如：本策略未考虑停牌与涨跌停无法成交的情况。"></textarea>
+      </div>
+
+      <div class="field" style="margin:0">
+        <label>免责声明</label>
+        <textarea class="input" id="tplDisclaimer" rows="3" style="resize:vertical;line-height:1.6"></textarea>
+      </div>
+
+      <div class="field" style="margin:0">
+        <label>页脚 <span style="color:var(--dim)">可用 {company} {date} {start} {end}</span></label>
+        <input class="input" id="tplFooter">
+      </div>
+
+      <div class="tpl-msg" id="tplMsg"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" id="tplReset">恢复默认</button>
+      <button class="btn btn-ghost btn-sm" id="tplCancel">取消</button>
+      <button class="btn btn-primary btn-sm" id="tplSave">保存并预览</button>
+    </div>
+  </div></div>
+
+<!-- ===== 大模型 API 配置弹窗 ===== -->
+<div class="modal-mask" id="llmModal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head">
+      <div class="modal-title">配置大模型 API</div>
+      <span style="font-size:11.5px;color:var(--muted)">用于生成报告中的风险提示</span>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto" id="llmClose" title="关闭（Esc）">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="llm-lock" id="llmLock" style="display:none">
+        <span>🔒</span>
+        <span>当前账号不是管理员，只能查看状态，不能修改配置。请用管理员账号（演示账号 demo）登录。</span>
+      </div>
+
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">服务商</div>
+        <div class="llm-prov" id="llmProvs"></div>
+        <div class="llm-hint" style="margin-top:6px">
+          以上均使用 OpenAI 兼容的 <code>/chat/completions</code> 接口；选「自定义」可填任意兼容网关（含本地 vLLM / one-api）。
+        </div>
+      </div>
+
+      <div class="field" style="margin:0">
+        <label>API Key <span style="color:var(--dim)" id="llmKeyNote"></span></label>
+        <div class="key-wrap">
+          <input class="input" id="llmKey" type="password" autocomplete="off" spellcheck="false"
+            placeholder="sk-...">
+          <button type="button" id="llmKeyEye">显示</button>
+        </div>
+        <div class="llm-hint" style="margin-top:6px" id="llmKeyHint"></div>
+      </div>
+
+      <div class="tpl-grid">
+        <div class="field" style="margin:0">
+          <label>模型名</label>
+          <input class="input" id="llmModel" placeholder="deepseek-chat">
+        </div>
+        <div class="field" style="margin:0">
+          <label>接口地址（base_url）</label>
+          <input class="input" id="llmBaseUrl" placeholder="https://api.deepseek.com/v1">
+        </div>
+        <div class="field" style="margin:0">
+          <label>超时（秒）</label>
+          <input class="input" id="llmTimeout" type="number" min="5" max="300" step="1" value="60">
+        </div>
+        <div class="field" style="margin:0">
+          <label>最大输出 tokens <span style="color:var(--dim)">· 小于 1200 可能被截断</span></label>
+          <input class="input" id="llmMaxTokens" type="number" min="100" max="4000" step="50" value="1500">
+        </div>
+      </div>
+
+      <label class="llm-switch">
+        <input type="checkbox" id="llmEnabled">
+        <span>启用大模型生成风险提示<span style="color:var(--dim)">（关闭则报告始终用模板版）</span></span>
+      </label>
+
+      <div class="llm-hint">
+        Key 保存在服务端 <code>quantmind/.llm_config.json</code>（已加入 .gitignore、权限 0600），
+        不会写进浏览器，也不会出现在导出报告里。留空表示保持原有 Key 不变。
+      </div>
+
+      <div class="llm-hint" id="llmMeta"></div>
+      <div class="tpl-msg" id="llmMsg"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" id="llmClear">清除配置</button>
+      <button class="btn btn-ghost btn-sm" id="llmTest">测试连接</button>
+      <button class="btn btn-ghost btn-sm" id="llmCancel">取消</button>
+      <button class="btn btn-primary btn-sm" id="llmSave">保存</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1065,13 +1317,51 @@ const dz=document.getElementById('dropZone');
 if(dz)dz.addEventListener('click',()=>{document.getElementById('fileInput').click()});
 
 /* pipeline steps */
+/* 依赖关系：下游步骤勾选时自动补齐上游 */
+const STEP_DEPS={clean:['fetch'],indicator:['clean'],backtest:['indicator'],report:['indicator']};
+function ensureDeps(step){
+  let added=[];
+  (STEP_DEPS[step]||[]).forEach(dep=>{
+    const el=document.querySelector(`.step[data-step="${dep}"]`);
+    if(el&&!el.classList.contains('on')){el.classList.add('on');added=added.concat([dep],ensureDeps(dep))}
+  });
+  return added;
+}
 document.querySelectorAll('.step').forEach(s=>s.addEventListener('click',()=>{
   s.classList.toggle('on');
-  if(s.dataset.step==='backtest'&&s.classList.contains('on')){
-    const ind=document.querySelector('.step[data-step="indicator"]');
-    if(!ind.classList.contains('on')){ind.classList.add('on');logPipeline('i','自动补齐依赖：已勾选「计算技术指标」')}
+  if(s.classList.contains('on')){
+    const added=ensureDeps(s.dataset.step);
+    if(added.length)logPipeline('i','自动补齐依赖：已勾选「'+added.map(d=>STEP_LABEL[d]||d).join('、')+'」');
   }
+  syncPresetActive();
 }));
+const STEP_LABEL={fetch:'行情获取',clean:'数据清洗',indicator:'计算技术指标',viz:'生成可视化图表',sentiment:'舆情情感分析',backtest:'策略回测',report:'导出分析报告'};
+
+/* 流水线预设：点击即勾选对应步骤组合 */
+const PRESETS={
+  quick:{steps:['fetch','indicator','viz'],desc:'快速预览：取数 → 指标 → 图表（不跑回测/报告）'},
+  full:{steps:['fetch','clean','indicator','viz','sentiment','backtest','report'],desc:'完整回测：全链路 7 步，含回测与 PDF 报告'},
+  sentiment:{steps:['fetch','sentiment'],desc:'仅舆情：取数 → 情感研判（不跑指标/回测）'}
+};
+let activePreset='quick';
+function applyPreset(name){
+  const p=PRESETS[name];if(!p)return;
+  activePreset=name;
+  document.querySelectorAll('.step').forEach(el=>{
+    el.classList.toggle('on',p.steps.includes(el.dataset.step));
+  });
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.toggle('active',b.dataset.preset===name));
+  logPipeline('i','已应用预设「'+document.querySelector(`.preset-btn[data-preset="${name}"]`).textContent+'」：'+p.desc);
+}
+function syncPresetActive(){
+  const cur=[...document.querySelectorAll('.step.on')].map(s=>s.dataset.step).sort().join(',');
+  let matched=null;
+  for(const k in PRESETS){if([...PRESETS[k].steps].sort().join(',')===cur){matched=k;break}}
+  activePreset=matched;
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.toggle('active',b.dataset.preset===matched));
+}
+document.querySelectorAll('.preset-btn').forEach(b=>b.addEventListener('click',()=>applyPreset(b.dataset.preset)));
+applyPreset('quick');   /* 初始状态与页面默认勾选一致，避免"无高亮" */
 function logPipeline(type,msg){
   const log=document.getElementById('pipelineLog');
   const t=new Date().toLocaleTimeString('zh-CN',{hour12:false});
@@ -1080,10 +1370,22 @@ function logPipeline(type,msg){
 }
 const runPipe=document.getElementById('runPipeline');
 
-function updateResults(steps){
+function updateResults(steps,results){
   const c=document.getElementById('pipelineResults');c.innerHTML='';
-  const labels={indicator:'指标表',viz:'K线/收益图',sentiment:'情绪指数+事件',backtest:'绩效+资金曲线',report:'PDF 报告'};
-  steps.forEach(s=>{const d=document.createElement('div');d.style.cssText='padding:10px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;gap:10px';d.innerHTML=`<span class="badge b-green">完成</span><span style="font-size:12.5px">${labels[s]}</span>`;c.appendChild(d)});
+  const labels={fetch:'行情数据',clean:'清洗结果',indicator:'指标表',viz:'K线/收益图',sentiment:'情绪指数+事件',backtest:'绩效+资金曲线',report:'分析报告'};
+  (results||[]).forEach(r=>{
+    if(!(steps||[]).includes(r.step))return;
+    const d=document.createElement('div');
+    d.style.cssText='padding:10px;border:1px solid var(--border);border-radius:9px;display:flex;align-items:center;gap:10px';
+    const ok=!!r.ok;
+    let extra='';
+    /* 报告步骤：给出真实下载入口，而不是只显示"完成" */
+    if(r.url)extra=`<a class="btn btn-sm" style="margin-left:auto;flex-shrink:0" href="${r.url}" target="_blank" rel="noopener">下载 ${(r.format||'html').toUpperCase()}</a>`;
+    d.innerHTML=`<span class="badge ${ok?'b-green':'b-red'}">${ok?'完成':'失败'}</span>`+
+      `<span style="font-size:12.5px;flex:1;min-width:0">${labels[r.step]||r.step}${r.msg?' · '+r.msg:''}</span>`+extra;
+    c.appendChild(d);
+  });
+  if(!c.children.length)c.innerHTML='<div style="font-size:12px;color:var(--muted)">未执行任何步骤</div>';
 }
 
 /* backtest run - real binding is below */
@@ -1466,7 +1768,7 @@ if(runPipe)runPipe.addEventListener('click',async()=>{
   logPipeline('i','开始执行流水线（'+currentStock+'），共 '+steps.length+' 步');
   runPipe.disabled=true;
   try{
-    const r=await callAPI('/pipeline',{steps:steps,stock_code:currentStock});
+    const r=await callAPI('/pipeline',{steps:steps,stock_code:currentStock,report_format:'pdf'});
     if(r.results){
       r.results.forEach(res=>{
         if(res.ok)logPipeline('ok','▶ '+res.msg);
@@ -1474,7 +1776,10 @@ if(runPipe)runPipe.addEventListener('click',async()=>{
       });
       logPipeline('ok','流水线执行完成 ✓');
       logActivity('分析流水线',`执行流水线 ${currentStock}：${steps.length}步完成`,'ok');
-      updateResults(steps);
+      updateResults(steps,r.results);
+      /* 报告步骤产出了真实文件：直接打开，省去再去报告中心找 */
+      const rep=r.results.find(x=>x.step==='report'&&x.ok&&x.url);
+      if(rep){logPipeline('ok','报告文件：'+rep.url);window.open(rep.url,'_blank')}
       await refreshStockList();
     }
   }catch(e){logPipeline('w','执行出错: '+e);logActivity('分析流水线','执行出错：'+e,'fail')}finally{runPipe.disabled=false}
@@ -1497,6 +1802,11 @@ function renderEngineStatus(st){
     badge.textContent=`${MODEL_NAME} 不可用`;
     if(note)note.textContent=st.error?('原因：'+st.error):'';
     if(tip)tip.classList.toggle('on',sentimentEngine==='model');
+  }else if(st&&st.loading){
+    badge.className='badge b-amber';
+    badge.textContent=`${MODEL_NAME} 加载中…`;
+    if(note)note.textContent='模型加载期间舆情分析自动走关键词规则，加载完成后自动切换';
+    if(tip)tip.classList.remove('on');
   }else{
     badge.className='badge b-amber';
     badge.textContent='模型未加载（切换后自动加载）';
@@ -1504,6 +1814,25 @@ function renderEngineStatus(st){
     if(tip)tip.classList.remove('on');
   }
 }
+/* 模型后台加载中：每 3 秒探一次状态，就绪后自动更新徽标
+   （最多 40 次 ≈ 2 分钟，避免模型一直加载不了时无限轮询） */
+let _engPollTimer=null,_engPollCount=0;
+function pollEngineUntilReady(){
+  if(_engPollTimer)return;
+  _engPollCount=0;
+  _engPollTimer=setInterval(async()=>{
+    _engPollCount++;
+    const st=await refreshEngineStatus(false);
+    const done=!st||!st.loading||_engPollCount>=40;
+    if(done){
+      clearInterval(_engPollTimer);_engPollTimer=null;
+      if(st&&st.available){
+        logActivity('舆情决策',`${MODEL_NAME} 加载完成，后续分析将使用模型`,'ok');
+      }
+    }
+  },3000);
+}
+
 async function refreshEngineStatus(probe){
   try{
     const st=await callAPI('/sentiment_engine_status',{probe:!!probe});
@@ -1528,7 +1857,10 @@ engBtns.forEach(b=>b.addEventListener('click',async()=>{
     if(note)note.textContent='正在加载模型…';
     const st=await refreshEngineStatus(true);
     engSwitch.dataset.busy='0';
-    if(st&&!st.available){
+    if(st&&st.loading){
+      logActivity('舆情决策','模型正在后台加载，期间分析自动回退关键词规则','info');
+      pollEngineUntilReady();
+    }else if(st&&!st.available){
       logActivity('舆情决策','模型不可用，分析将自动回退关键词规则','fail');
     }
   }else{
@@ -1542,8 +1874,9 @@ engBtns.forEach(b=>b.addEventListener('click',async()=>{
   else chartSentIndex();
 }));
 
-/* 进入舆情页时刷新一次引擎状态（probe=false，不触发加载） */
-refreshEngineStatus(false);
+/* 进入舆情页时刷新一次引擎状态（probe=false，不触发加载）
+   若此时后端正在后台预热模型，则开启轮询，加载完自动更新徽标 */
+refreshEngineStatus(false).then(st=>{if(st&&st.loading)pollEngineUntilReady()});
 
 /* --- 舆情页：采集舆情 --- */
 const btnSentCollect=document.getElementById('btnSentCollect');
@@ -1676,55 +2009,203 @@ if(btnExportPdf)btnExportPdf.addEventListener('click',async()=>{
   }catch(e){btnExportPdf.textContent='导出失败 ✗';setTimeout(()=>btnExportPdf.textContent='导出 PDF',2000)}finally{btnExportPdf.disabled=false}
 });
 
-/* --- 报告页：导出报告 --- */
-async function generateReportPreview(){
-  try{
-    const r=await callAPI('/export_report',{stock_code:currentStock,format:'html',start_date:btParams.start_date,end_date:btParams.end_date});
-    if(!r.ok)return;
-    const now=new Date();
-    const ts=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
-    const rangeTxt=btParams.start_date||btParams.end_date?` · 回测区间 ${btParams.start_date||'起始'}~${btParams.end_date||'至今'}`:' · 全部数据';
-    const elT=document.getElementById('reportTitle');
-    if(elT)elT.textContent=currentStock+' 综合量化分析报告';
-    const elSt=document.getElementById('reportSubtitle');
-    if(elSt)elSt.textContent='生成时间：'+ts+rangeTxt;
-    const bt=await callAPI('/backtest',{stock_code:currentStock,short_ma:btParams.short_ma,long_ma:btParams.long_ma,init_capital:btParams.init_capital,start_date:btParams.start_date,end_date:btParams.end_date});
-    if(bt.ok){
-      const el=document.getElementById('reportPerf');
-      if(el)el.innerHTML=`<span class="kv">年化 <b class="${bt.annual_return>0?'up':'down'}">${bt.annual_return>0?'+':''}${bt.annual_return}%</b></span><span class="kv">回撤 <b class="down">${bt.max_drawdown}%</b></span><span class="kv">胜率 <b>${bt.win_rate}%</b></span><span class="kv">夏普 <b class="${bt.sharpe>0?'up':'down'}">${bt.sharpe}</b></span>`;
-    }
-    const sent=await callAPI('/sentiment_analyze',{stock_code:currentStock});
-    if(sent.ok){
-      const elS=document.getElementById('reportSentiment');
-      if(elS)elS.textContent=`情绪指数 ${sent.index}/100 ${sent.index>55?'偏乐观':'偏悲观'}；看涨${sent.pos_pct}% 看跌${sent.neg_pct}%`;
-      const elO=document.getElementById('reportOverview');
-      if(elO)elO.textContent=`回测区间 ${btParams.start_date||'全部数据起始'}~${btParams.end_date||'至今'}，情绪指数 ${sent.index}/100，${sent.results.length} 条舆情分析完成。`;
-      const elStr=document.getElementById('reportStrategy');
-      if(elStr)elStr.textContent=`双均线(5/20)交叉信号 + 情绪指数过滤买入（当前${sent.index}，${sent.index>=45?'允许买入':'拒绝买入'}），含手续费/滑点。`;
-    }
-    const elR=document.getElementById('reportRisk');
-    if(elR){
-      let risks=[];
-      risks.push('本报告基于历史数据回测，历史表现不代表未来收益，实盘交易存在亏损风险。');
-      if(bt&&bt.ok){
-        risks.push(`策略最大回撤达 ${bt.max_drawdown}%，请根据自身风险承受能力谨慎决策。`);
-        if(bt.trade_count<10)risks.push(`回测交易笔数仅 ${bt.trade_count} 次，样本量不足，统计结果可能不具代表性。`);
-        if(Math.abs(bt.sharpe)<0.5)risks.push('夏普比率较低，策略风险调整后收益不理想，需谨慎参考。');
-      }
-      if(btParams.start_date||btParams.end_date){
-        risks.push(`回测区间 ${btParams.start_date||'起始'}~${btParams.end_date||'至今'}，仅覆盖该区间数据，区间外行情未纳入。`);
-      }
-      if(sent&&sent.ok){
-        if(sent.index<45)risks.push('当前舆情情绪偏悲观，市场不确定性较高，建议观望或减仓。');
-        if(sent.results&&sent.results.length<5)risks.push(`舆情样本仅 ${sent.results.length} 条，情绪研判可靠性有限。`);
-      }
-      risks.push('舆情研判由 AI 基于关键词分析生成，无法保证信息完整性与判断准确性，仅供参考。');
-      risks.push('双均线策略为趋势跟踪型策略，在震荡行情中可能频繁产生虚假信号导致亏损。');
-      elR.innerHTML=risks.map(r=>'• '+r).join('<br>');
-    }
-    return r;
-  }catch(e){return null}
+/* --- 报告页：真实预览（iframe 渲染后端 HTML）--- */
+function reportFrameShow(html){
+  const f=document.getElementById('reportFrame');
+  const mask=document.getElementById('reportFrameMask');
+  if(!f)return;
+  f.srcdoc=html||'<p style="font-family:sans-serif;padding:24px;color:#666">暂无可预览内容</p>';
+  if(mask)mask.classList.add('off');
 }
+function reportFrameBusy(msg){
+  const mask=document.getElementById('reportFrameMask');
+  const hint=document.getElementById('reportPreviewHint');
+  if(mask){mask.classList.remove('off');const t=mask.querySelector('div:last-child');if(t)t.textContent=msg||'正在生成报告预览…'}
+  if(hint)hint.textContent='生成中…';
+}
+async function generateReportPreview(silent){
+  if(!silent)reportFrameBusy('正在生成报告预览…');
+  try{
+    const r=await callAPI('/report_preview',{
+      stock_code:currentStock,
+      start_date:btParams.start_date,
+      end_date:btParams.end_date
+    });
+    const hint=document.getElementById('reportPreviewHint');
+    if(r&&r.ok){
+      reportFrameShow(r.html);
+      const sm=r.summary||{};
+      if(hint)hint.textContent=`${currentStock} · ${sm.rows||0} 条 · ${sm.start||''} ~ ${sm.end||''}`;
+      return r;
+    }
+    reportFrameShow(null);
+    if(hint)hint.textContent=(r&&r.msg)||'预览失败';
+    return null;
+  }catch(e){
+    reportFrameShow(null);
+    const hint=document.getElementById('reportPreviewHint');
+    if(hint)hint.textContent='预览失败：'+e.message;
+    return null;
+  }
+}
+
+/* 真正导出：format 决定文件类型，后端分别产出 .html / 真实 .pdf */
+async function doExportReport(fmt,btn,label){
+  if(btn){btn.disabled=true;btn.textContent='生成中...'}
+  try{
+    const r=await callAPI('/export_report',{
+      stock_code:currentStock,
+      format:fmt,
+      start_date:btParams.start_date,
+      end_date:btParams.end_date
+    });
+    if(r&&r.ok){
+      logActivity('报告中心',`导出${fmt.toUpperCase()}报告 ${currentStock}：${r.filename}`,'ok');
+      const eh=document.getElementById('reportEngineHint');
+      if(eh&&fmt==='pdf')eh.textContent='PDF 引擎：'+r.engine;
+      window.open(r.url,'_blank');
+      if(btn)btn.textContent='导出成功 ✓';
+      loadReportHistory();
+      setTimeout(()=>{if(btn){btn.textContent=label;btn.disabled=false}},1800);
+      return;
+    }
+    /* 失败要把原因说清楚，不能只显示"导出失败" */
+    const msg=(r&&r.msg)||'未知错误';
+    const detail=(r&&r.detail)?('\n\n'+(r.detail||'')):'';
+    alert('导出失败：'+msg+detail);
+    logActivity('报告中心',`导出${fmt.toUpperCase()}失败：${msg}`,'fail');
+    if(btn){btn.textContent='导出失败 ✗';setTimeout(()=>{btn.textContent=label;btn.disabled=false},2000)}
+  }catch(e){
+    alert('导出失败：'+e.message);
+    if(btn){btn.textContent='导出失败 ✗';setTimeout(()=>{btn.textContent=label;btn.disabled=false},2000)}
+  }
+}
+
+const btnReportPdf=document.getElementById('btnReportPdf');
+if(btnReportPdf)btnReportPdf.addEventListener('click',()=>doExportReport('pdf',btnReportPdf,'导出 PDF'));
+const btnReportHtml=document.getElementById('btnReportHtml');
+if(btnReportHtml)btnReportHtml.addEventListener('click',()=>doExportReport('html',btnReportHtml,'导出 HTML'));
+const btnReportRefresh=document.getElementById('btnReportRefresh');
+if(btnReportRefresh)btnReportRefresh.addEventListener('click',()=>generateReportPreview());
+
+/* --- 报告模板：读取 / 编辑 / 保存 / 恢复默认 --- */
+let tplCache=null,tplThemes={};
+const SECTION_LABELS={overview:'① 行情概览',strategy:'② 策略逻辑',performance:'③ 回测绩效',sentiment:'④ 舆情摘要',risk:'⑤ 风险提示'};
+const THEME_LABELS={indigo:'靛蓝',violet:'紫罗兰',emerald:'翠绿',amber:'琥珀',rose:'玫红',slate:'石板灰'};
+
+function tplMsg(text,cls){
+  const el=document.getElementById('tplMsg');
+  if(!el)return;
+  el.className='tpl-msg'+(cls?' '+cls:'');
+  el.textContent=text||'';
+}
+
+function renderThemeSwatches(active){
+  const box=document.getElementById('tplThemes');
+  if(!box)return;
+  box.innerHTML=Object.entries(tplThemes).map(([k,c])=>
+    `<div class="swatch ${k===active?'active':''}" data-theme="${k}" title="${THEME_LABELS[k]||k}"
+      style="background:${c}"></div>`).join('');
+  box.querySelectorAll('.swatch').forEach(sw=>sw.addEventListener('click',()=>{
+    box.querySelectorAll('.swatch').forEach(x=>x.classList.remove('active'));
+    sw.classList.add('active');
+  }));
+}
+
+function renderSectionToggles(sections){
+  const box=document.getElementById('tplSections');
+  if(!box)return;
+  box.innerHTML=Object.keys(SECTION_LABELS).map(k=>
+    `<label><input type="checkbox" data-sec="${k}" ${sections&&sections[k]!==false?'checked':''}>${SECTION_LABELS[k]}</label>`
+  ).join('');
+}
+
+function fillTplForm(tpl){
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v==null?'':v};
+  set('tplTitle',tpl.title);set('tplSubtitle',tpl.subtitle);set('tplCompany',tpl.company);
+  set('tplAuthor',tpl.author);set('tplDisclaimer',tpl.disclaimer);set('tplFooter',tpl.footer);
+  const risks=document.getElementById('tplRisks');
+  if(risks)risks.value=(tpl.risk_items||[]).join('\n');
+  renderThemeSwatches(tpl.theme||'indigo');
+  renderSectionToggles(tpl.sections||{});
+}
+
+function collectTplForm(){
+  const val=id=>{const el=document.getElementById(id);return el?el.value:''};
+  const sections={};
+  document.querySelectorAll('#tplSections input[data-sec]').forEach(cb=>{sections[cb.dataset.sec]=cb.checked});
+  const activeSw=document.querySelector('#tplThemes .swatch.active');
+  return {
+    title:val('tplTitle'),subtitle:val('tplSubtitle'),company:val('tplCompany'),
+    author:val('tplAuthor'),disclaimer:val('tplDisclaimer'),footer:val('tplFooter'),
+    theme:activeSw?activeSw.dataset.theme:'indigo',
+    sections:sections,
+    risk_items:val('tplRisks').split('\n').map(x=>x.trim()).filter(Boolean)
+  };
+}
+
+async function openTplModal(){
+  const mask=document.getElementById('tplModal');
+  if(!mask)return;
+  mask.classList.add('on');
+  tplMsg('正在读取模板…');
+  try{
+    const res=await fetch(API+'/report_template',{method:'GET'});
+    const d=await res.json();
+    if(d.ok){
+      tplCache=d.template;tplThemes=d.themes||{};
+      fillTplForm(tplCache);
+      tplMsg('模板已加载，修改后点「保存并预览」');
+    }else{tplMsg('读取模板失败：'+(d.msg||''),'err')}
+  }catch(e){tplMsg('读取模板失败：'+e.message,'err')}
+}
+function closeTplModal(){
+  const mask=document.getElementById('tplModal');
+  if(mask)mask.classList.remove('on');
+}
+
+const btnReportTpl=document.getElementById('btnReportTpl');
+if(btnReportTpl)btnReportTpl.addEventListener('click',openTplModal);
+['tplClose','tplCancel'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('click',closeTplModal)});
+const tplModalEl=document.getElementById('tplModal');
+if(tplModalEl)tplModalEl.addEventListener('click',e=>{if(e.target===tplModalEl)closeTplModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTplModal()});
+
+const tplSave=document.getElementById('tplSave');
+if(tplSave)tplSave.addEventListener('click',async()=>{
+  const patch=collectTplForm();
+  if(!patch.title.trim()){tplMsg('报告标题不能为空','err');return}
+  tplSave.disabled=true;tplMsg('保存中…');
+  try{
+    const res=await fetch(API+'/report_template',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)
+    });
+    const d=await res.json();
+    if(d.ok){
+      tplCache=d.template;tplThemes=d.themes||tplThemes;
+      tplMsg('已保存，正在刷新预览…','ok');
+      logActivity('报告中心','更新报告模板','ok');
+      closeTplModal();
+      await generateReportPreview(true);
+    }else{tplMsg('保存失败：'+(d.msg||''),'err')}
+  }catch(e){tplMsg('保存失败：'+e.message,'err')}
+  finally{tplSave.disabled=false}
+});
+
+const tplReset=document.getElementById('tplReset');
+if(tplReset)tplReset.addEventListener('click',async()=>{
+  if(!confirm('恢复默认模板？当前自定义内容将丢失。'))return;
+  try{
+    const res=await fetch(API+'/report_template',{method:'DELETE'});
+    const d=await res.json();
+    if(d.ok){
+      tplCache=d.template;fillTplForm(tplCache);
+      tplMsg('已恢复默认模板','ok');
+      logActivity('报告中心','恢复默认报告模板','ok');
+      generateReportPreview(true);
+    }else{tplMsg('恢复失败：'+(d.msg||''),'err')}
+  }catch(e){tplMsg('恢复失败：'+e.message,'err')}
+});
 
 async function loadReportHistory(){
   const tbody=document.getElementById('reportHistoryTable');
@@ -1766,32 +2247,330 @@ async function deleteReport(filename){
     }
   }catch(e){alert('删除失败：'+e.message)}
 }
-const btnReportPdf=document.getElementById('btnReportPdf');
-if(btnReportPdf)btnReportPdf.addEventListener('click',async()=>{
-  btnReportPdf.disabled=true;btnReportPdf.textContent='生成中...';
+
+/* --- 风险提示引擎：状态 / 测试连接 / 并排对比 --- */
+function riskMsg(text,cls){
+  const el=document.getElementById('riskMsg');
+  if(!el)return;
+  el.className='tpl-msg'+(cls?' '+cls:'');
+  el.textContent=text||'';
+}
+function renderRiskBadge(st){
+  const b=document.getElementById('riskEngStatus');
+  const h=document.getElementById('riskEngHint');
+  if(!b)return;
+  if(st&&st.enabled){
+    b.className='badge b-green';
+    b.textContent=`${st.provider} · ${st.model} 已启用`;
+    if(h)h.textContent='报告导出的风险提示将使用大模型';
+  }else if(st&&st.has_key===false){
+    b.className='badge b-gray';
+    b.textContent='模板模式（未配置 API Key）';
+    if(h)h.textContent=(st.reason||'')+' · 点「配置」填入 API Key 即可启用大模型';
+  }else{
+    b.className='badge b-amber';
+    b.textContent='模板模式（已关闭大模型）';
+    if(h)h.textContent=(st.reason||'')+' · 点「配置」可启用';
+  }
+}
+async function loadRiskEngineStatus(){
   try{
-    const r=await generateReportPreview();
-    if(r&&r.ok){
-      btnReportPdf.textContent='导出成功 ✓';
-      logActivity('报告中心','导出PDF报告 '+currentStock+'：'+r.url,'ok');
-      window.open(r.url,'_blank');
-      setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000);
-    }else{btnReportPdf.textContent='导出失败 ✗';setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000)}
-  }catch(e){btnReportPdf.textContent='导出失败 ✗';setTimeout(()=>btnReportPdf.textContent='导出 PDF',2000)}finally{btnReportPdf.disabled=false}
-});
-const btnReportHtml=document.getElementById('btnReportHtml');
-if(btnReportHtml)btnReportHtml.addEventListener('click',async()=>{
-  btnReportHtml.disabled=true;btnReportHtml.textContent='生成中...';
+    const r=await fetch(API+'/risk_engine_status').then(x=>x.json());
+    renderRiskBadge(r);
+    return r;
+  }catch(e){
+    const b=document.getElementById('riskEngStatus');
+    if(b){b.className='badge b-red';b.textContent='状态获取失败'}
+    return null;
+  }
+}
+function renderRiskSummary(text){
+  const el=document.getElementById('riskLlmSummary');
+  if(!el)return;
+  if(!text){el.style.display='none';el.textContent='';return}
+  el.style.display='block';
+  el.textContent=text;
+}
+function renderRiskList(id,items,isLlm){
+  const el=document.getElementById(id);
+  if(!el)return;
+  if(!items||!items.length){
+    el.innerHTML=`<li class="risk-empty">${isLlm?'大模型未返回内容':'暂无内容'}</li>`;
+    return;
+  }
+  el.innerHTML=items.map((t,i)=>{
+    /* 大模型版最后一条是来源说明，单独样式 */
+    const isNote=isLlm&&/上述风险分析由大模型/.test(t);
+    return `<li class="${isNote?'risk-note':''}">${isNote?t:t.replace(/</g,'&lt;')}</li>`;
+  }).join('');
+}
+const btnRiskGen=document.getElementById('btnRiskGen');
+if(btnRiskGen)btnRiskGen.addEventListener('click',async()=>{
+  btnRiskGen.disabled=true;btnRiskGen.textContent='生成中…';
+  const tplList=document.getElementById('riskTplList');
+  const llmList=document.getElementById('riskLlmList');
+  const badge=document.getElementById('riskLlmBadge');
+  if(tplList)tplList.innerHTML='<li class="risk-loading">生成中…</li>';
+  if(llmList)llmList.innerHTML='<li class="risk-loading">生成中…（大模型通常需 5~20 秒）</li>';
+  renderRiskSummary('');
+  if(badge){badge.className='badge b-gray';badge.textContent='生成中'}
+  riskMsg('');
   try{
-    const r=await generateReportPreview();
-    if(r&&r.ok){
-      btnReportHtml.textContent='导出成功 ✓';
-      logActivity('报告中心','导出报告 '+currentStock+'：'+r.url,'ok');
-      window.open(r.url,'_blank');
-      setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000);
-    }else{btnReportHtml.textContent='导出失败 ✗';setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000)}
-  }catch(e){btnReportHtml.textContent='导出失败 ✗';setTimeout(()=>btnReportHtml.textContent='导出 HTML',2000)}finally{btnReportHtml.disabled=false}
+    const r=await callAPI('/risk_preview',{
+      stock_code:currentStock,
+      start_date:btParams.start_date,
+      end_date:btParams.end_date
+    });
+    renderRiskList('riskTplList',r.template_items,false);
+    if(r.llm_items||r.llm_summary){
+      renderRiskSummary(r.llm_summary);
+      renderRiskList('riskLlmList',r.llm_items,true);
+      if(badge){badge.className='badge b-green';badge.textContent=`${r.model} · ${(r.elapsed_ms/1000).toFixed(1)}s`}
+      const dropped=(r.dropped||[]).length;
+      riskMsg(dropped?`已过滤 ${dropped} 条不合格输出（编造数字/禁用词/未知字段），其余通过校验`:'大模型输出已全部通过数值校验',dropped?'':'ok');
+      logActivity('报告中心',`大模型分析：${r.model} 用时 ${r.elapsed_ms}ms`,dropped?'warn':'ok');
+    }else{
+      renderRiskList('riskLlmList',null,true);
+      if(badge){badge.className='badge b-amber';badge.textContent='不可用'}
+      let m='大模型未生成：'+(r.error||'未知原因')+'（报告将使用模板版）';
+      if(r.raw)m+=' · 原始返回：'+r.raw.slice(0,120);
+      riskMsg(m,'err');
+      logActivity('报告中心','大模型分析不可用：'+(r.error||''),'fail');
+    }
+  }catch(e){
+    renderRiskList('riskTplList',null,false);
+    renderRiskList('riskLlmList',null,true);
+    renderRiskSummary('');
+    riskMsg('请求失败：'+e.message,'err');
+  }finally{
+    btnRiskGen.disabled=false;btnRiskGen.textContent='生成并对比';
+  }
 });
+const btnRiskProbe=document.getElementById('btnRiskProbe');
+if(btnRiskProbe)btnRiskProbe.addEventListener('click',async()=>{
+  btnRiskProbe.disabled=true;btnRiskProbe.textContent='测试中…';
+  riskMsg('正在测试连接…');
+  try{
+    /* probe=1 时后端用「当前已保存配置」直连测试，即使引擎开关是 template 也能验 Key */
+    const res=await fetch(API+'/risk_engine_status',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:true})
+    });
+    const r=await res.json();
+    renderRiskBadge(r);
+    const p=r.probe||{};
+    if(p.ok)riskMsg(`连接正常 · ${p.provider} / ${p.model} · ${p.elapsed_ms}ms`,'ok');
+    else riskMsg('连接失败：'+(p.error||r.reason||'未知原因')+'（可点「配置」检查 Key）','err');
+  }catch(e){riskMsg('测试失败：'+e.message,'err')}
+  finally{btnRiskProbe.disabled=false;btnRiskProbe.textContent='测试连接'}
+});
+loadRiskEngineStatus();
+
+/* ============ 大模型 API 配置弹窗 ============ */
+const PROVIDER_LABEL={deepseek:'DeepSeek',moonshot:'Kimi / Moonshot',zhipu:'智谱 GLM',qwen:'通义千问',custom:'自定义'};
+let llmCfg=null;            /* 最近一次读取到的服务端配置 */
+let llmProv='deepseek';     /* 当前弹窗里选中的服务商 */
+
+function llmMsg(text,cls){
+  const el=document.getElementById('llmMsg');
+  if(!el)return;
+  el.className='tpl-msg'+(cls?' '+cls:'');
+  el.textContent=text||'';
+}
+function llmIsAdmin(){return !!(llmCfg&&llmCfg.can_edit);}
+
+function buildProvChips(){
+  const box=document.getElementById('llmProvs');
+  if(!box)return;
+  const provs=(llmCfg&&llmCfg.providers)||{};
+  const keys=Object.keys(PROVIDER_LABEL);
+  box.innerHTML=keys.map(k=>{
+    const meta=provs[k]||{};
+    const sub=k==='custom'?'任意兼容接口':(meta.model||'');
+    return `<button type="button" data-prov="${k}" class="${k===llmProv?'active':''}">
+      <span>${PROVIDER_LABEL[k]}</span><small>${sub}</small></button>`;
+  }).join('');
+  box.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      llmProv=b.dataset.prov;
+      box.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.prov===llmProv));
+      /* 换服务商时自动填默认 base_url / model，但不要覆盖用户手动改过的自定义值 */
+      const meta=(llmCfg&&llmCfg.providers&&llmCfg.providers[llmProv])||null;
+      if(llmProv==='custom'){
+        const bu=document.getElementById('llmBaseUrl');
+        if(bu&&!bu.value)bu.placeholder='https://your-gateway/v1';
+      }else if(meta){
+        const bu=document.getElementById('llmBaseUrl');
+        const md=document.getElementById('llmModel');
+        if(bu)bu.value=meta.base_url||'';
+        if(md)md.value=meta.model||'';
+      }
+    });
+  });
+}
+
+function fillLlmForm(cfg){
+  llmCfg=cfg||{};
+  llmProv=cfg.provider||'deepseek';
+  buildProvChips();
+  const ro=!llmIsAdmin();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v==null?'':v;};
+  set('llmModel',cfg.model||'');
+  set('llmBaseUrl',cfg.base_url||'');
+  set('llmTimeout',cfg.timeout||60);
+  set('llmMaxTokens',cfg.max_tokens||700);
+  set('llmKey','');                       /* Key 永远不回填 */
+  const en=document.getElementById('llmEnabled');
+  if(en)en.checked=!!cfg.enabled;
+
+  const note=document.getElementById('llmKeyNote');
+  if(note)note.textContent=cfg.has_key?`已保存 ${cfg.key_hint}，留空则保持不变`:'尚未配置';
+  const hint=document.getElementById('llmKeyHint');
+  if(hint){
+    hint.innerHTML=cfg.has_key
+      ? `当前 Key 来源：<code>${cfg.key_source==='file'?'服务端配置文件':'环境变量 QUANTMIND_LLM_API_KEY'}</code>`
+        + (cfg.key_source==='file'?' · 要替换请直接输入新 Key；要清空请点「清除配置」':' · 环境变量优先级低于配置文件')
+      : '在服务商控制台创建 API Key 后粘贴到这里。Key 只保存在这台机器的服务端文件里。';
+  }
+  const meta=document.getElementById('llmMeta');
+  if(meta){
+    meta.innerHTML=`引擎开关：<code>${cfg.engine_setting||'template'}</code> · `
+      + `状态：<b>${cfg.enabled?'已启用':'模板模式'}</b>`
+      + (cfg.has_config_file?' · 已有配置文件 <code>.llm_config.json</code>':' · 尚未生成配置文件')
+      + (cfg.reason?` · ${cfg.reason}`:'');
+  }
+
+  /* 只读态：禁用所有可编辑控件 */
+  ['llmKey','llmModel','llmBaseUrl','llmTimeout','llmMaxTokens','llmEnabled','llmSave','llmTest','llmClear','llmKeyEye']
+    .forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=ro;});
+  const lock=document.getElementById('llmLock');
+  if(lock)lock.style.display=ro?'flex':'none';
+  const provBox=document.getElementById('llmProvs');
+  if(provBox)provBox.style.pointerEvents=ro?'none':'auto';
+  if(provBox)provBox.style.opacity=ro?'.5':'1';
+}
+
+async function loadLlmConfig(){
+  try{
+    const r=await fetch(API+'/llm_config').then(x=>x.json());
+    if(r&&r.ok&&r.config)fillLlmForm(r.config);
+    return r&&r.config;
+  }catch(e){
+    llmMsg('配置读取失败：'+e.message,'err');
+    return null;
+  }
+}
+
+function openLlmModal(){
+  const mask=document.getElementById('llmModal');
+  if(!mask)return;
+  mask.classList.add('on');
+  llmMsg('');
+  loadLlmConfig().then(()=>{
+    const el=document.getElementById('llmKey');
+    if(el&&llmIsAdmin())el.focus();
+  });
+}
+function closeLlmModal(){
+  const mask=document.getElementById('llmModal');
+  if(mask)mask.classList.remove('on');
+}
+
+const btnRiskConfig=document.getElementById('btnRiskConfig');
+if(btnRiskConfig)btnRiskConfig.addEventListener('click',openLlmModal);
+
+(function(){
+  const mask=document.getElementById('llmModal');
+  if(mask)mask.addEventListener('click',e=>{if(e.target===mask)closeLlmModal()});
+  const c=document.getElementById('llmClose');if(c)c.addEventListener('click',closeLlmModal);
+  const x=document.getElementById('llmCancel');if(x)x.addEventListener('click',closeLlmModal);
+
+  const eye=document.getElementById('llmKeyEye');
+  if(eye)eye.addEventListener('click',()=>{
+    const i=document.getElementById('llmKey');
+    if(!i)return;
+    const show=i.type==='password';
+    i.type=show?'text':'password';
+    eye.textContent=show?'隐藏':'显示';
+  });
+
+  /* 组装表单内容 */
+  function collect(){
+    const g=id=>{const e=document.getElementById(id);return e?e.value.trim():''};
+    const body={
+      provider:llmProv,
+      base_url:g('llmBaseUrl'),
+      model:g('llmModel'),
+      timeout:g('llmTimeout'),
+      max_tokens:g('llmMaxTokens'),
+      enabled:!!(document.getElementById('llmEnabled')||{}).checked
+    };
+    const key=g('llmKey');
+    if(key)body.api_key=key;
+    return body;
+  }
+
+  const save=document.getElementById('llmSave');
+  if(save)save.addEventListener('click',async()=>{
+    if(!llmIsAdmin())return llmMsg('仅管理员可修改配置','err');
+    save.disabled=true;const old=save.textContent;save.textContent='保存中…';
+    llmMsg('');
+    try{
+      const res=await fetch(API+'/llm_config',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())
+      });
+      const r=await res.json();
+      if(!res.ok||!r.ok){llmMsg(r.msg||('保存失败 HTTP '+res.status),'err');return;}
+      fillLlmForm(r.config);
+      renderRiskBadge(r.config);
+      llmMsg(r.msg||'配置已保存','ok');
+      logActivity('报告中心',`大模型配置已保存：${r.config.provider} / ${r.config.model}`
+        + (r.config.enabled?'（已启用）':'（已关闭）'),'ok');
+    }catch(e){llmMsg('保存失败：'+e.message,'err')}
+    finally{save.disabled=false;save.textContent=old}
+  });
+
+  const test=document.getElementById('llmTest');
+  if(test)test.addEventListener('click',async()=>{
+    if(!llmIsAdmin())return llmMsg('仅管理员可测试配置','err');
+    test.disabled=true;const old=test.textContent;test.textContent='测试中…';
+    llmMsg('正在调用一次接口验证 Key…');
+    try{
+      const res=await fetch(API+'/llm_config',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...collect(),probe:true})
+      });
+      const r=await res.json();
+      if(!res.ok){llmMsg(r.msg||('HTTP '+res.status),'err');return;}
+      const p=r.probe||{};
+      if(p.ok)llmMsg(`连接成功 · ${p.provider} / ${p.model} · 往返 ${p.elapsed_ms}ms`,'ok');
+      else llmMsg('连接失败：'+(p.error||'未知原因'),'err');
+    }catch(e){llmMsg('测试失败：'+e.message,'err')}
+    finally{test.disabled=false;test.textContent=old}
+  });
+
+  const clr=document.getElementById('llmClear');
+  if(clr)clr.addEventListener('click',async()=>{
+    if(!llmIsAdmin())return llmMsg('仅管理员可修改配置','err');
+    if(!confirm('确定清除服务端保存的大模型配置吗？\n清除后风险提示将回到模板模式。'))return;
+    clr.disabled=true;const old=clr.textContent;clr.textContent='清除中…';
+    try{
+      const res=await fetch(API+'/llm_config',{method:'DELETE'});
+      const r=await res.json();
+      if(!res.ok||!r.ok){llmMsg(r.msg||('清除失败 HTTP '+res.status),'err');return;}
+      fillLlmForm(r.config);
+      renderRiskBadge(r.config);
+      llmMsg(r.msg||'已清除','ok');
+      logActivity('报告中心','已清除大模型配置','warn');
+    }catch(e){llmMsg('清除失败：'+e.message,'err')}
+    finally{clr.disabled=false;clr.textContent=old}
+  });
+
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    const m=document.getElementById('llmModal');
+    if(m&&m.classList.contains('on'))closeLlmModal();
+  });
+})();
 
 /* ============ 账号：当前用户 / 下拉菜单 / 个人中心 ============ */
 let me=null;

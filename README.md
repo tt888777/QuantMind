@@ -429,10 +429,17 @@ DAPT 底座由 `BertForMaskedLM` 保存，**不含 `bert.pooler`**；而
 | `QUANTMIND_SENTIMENT_MAX_LEN`       | `64`                               | 推理最大 token 长度                                      |
 | `QUANTMIND_SENTIMENT_BATCH`         | `32`                               | 推理批大小                                              |
 | `QUANTMIND_SENTIMENT_STRONG`        | `0.9`                              | 输出「强烈看涨/强烈看跌」的概率阈值，`0` = 关闭                        |
-| `QUANTMIND_SENTIMENT_WARMUP`        | `0`                                | `1` = 启动即加载模型（首个请求不用等）                             |
+| `QUANTMIND_SENTIMENT_WARMUP`        | `0`                                | `1` = 启动后在**后台线程**预加载模型（端口立刻可用，加载期间分析自动走关键词规则） |
 | `QUANTMIND_MODEL_HF_REPO`           | 读 `ml/model_source.json`           | 覆盖 `setup_model.py` 使用的 HF 仓库                      |
 | `HF_ENDPOINT`                       | `https://hf-mirror.com`            | HF 下载镜像                                            |
 | `HF_HUB_DISABLE_XET`                | 由启动脚本设为 `1`                        | 镜像不支持 Xet 协议，必须关掉                                  |
+| `QUANTMIND_LLM_ENGINE`              | `template`                         | `llm` = 用大模型生成报告风险提示（也可在网页「配置」里开启）                 |
+| `QUANTMIND_LLM_PROVIDER`            | `deepseek`                         | 服务商（deepseek / moonshot / zhipu / qwen）            |
+| `QUANTMIND_LLM_API_KEY`             | 空                                  | 大模型 API Key（推荐直接在网页「报告中心 → 配置」里填，存服务端文件）           |
+
+> **大模型风险提示**：报告中心 → 风险提示引擎 → 「配置」，管理员（demo）填入 API Key 并启用即可；
+> Key 保存在服务端 `quantmind/.llm_config.json`（已 gitignore、权限 0600，不回显），
+> 配置文件优先级高于环境变量。任何失败自动降级回模板版风险提示，不影响报告生成。
 
 ---
 
@@ -459,6 +466,10 @@ DAPT 底座由 `BertForMaskedLM` 保存，**不含 `bert.pooler`**；而
 | POST     | `/api/sentiment_predict`                    | 单条/批量标题预测，`compare=true` 输出两引擎对比                                 |                    |
 | POST     | `/api/export_chart` / `/api/export_report`  | 导出图表 / HTML 报告                                                   |                    |
 | GET      | `/api/reports` · POST `/api/reports/delete` | 报告列表 / 删除                                                        |                    |
+| GET/POST | `/api/risk_engine_status`                   | 风险提示引擎状态（POST 带 `probe:true` 测试连接）                               |                    |
+| POST     | `/api/risk_preview`                         | 模板版 / 大模型版风险提示并排对比                                               |                    |
+| GET      | `/api/llm_config`                           | 大模型配置读取（Key 脱敏）                                                  |                    |
+| POST/DEL | `/api/llm_config`                           | 配置保存 / 清除（**仅管理员**，POST 带 `probe:true` 为只测不存）                    |                    |
 
 自检命令（带会话）：
 
@@ -496,6 +507,18 @@ curl -b ck.txt http://127.0.0.1:5000/api/sentiment_engine_status?probe=true
 
 **Q6 · 报告 / 图表下载 404**  
 `exports/` 目录被 `.gitignore` 排除，首次运行时会自动创建；确认进程有写权限。
+
+**Q7 · 页面提示「网络异常：Failed to fetch」**  
+`Failed to fetch` 是浏览器连不上服务，**不是业务报错**。按顺序排查：
+
+1. **服务是否真的在跑**：`netstat -ano | findstr :5000` 应有监听。  
+   黑窗口停在 `[服务已退出]` 或某个 `pause` 上，说明启动失败，往上翻报错。
+2. **地址对不对**：必须是 `http://127.0.0.1:5000`（不要用 `file://` 直接双击打开 HTML，
+   那样页面里的 `/api` 请求没有后端可去）。
+3. **是不是刚启动就点了登录**：旧版本在主线程预加载模型要 14 秒才监听端口。
+   现已改为**后台线程预热**，端口立刻可用；若在加载期间点「AI 模型」分析，
+   会自动回退关键词规则而不会卡住，加载完成后徽标自动变为「就绪」。
+4. 仍不行就看启动黑窗口的输出——`Failed to fetch` 的真正原因一定在其中。
 
 ---
 

@@ -138,7 +138,7 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
             task_id=task.task_id,
             total_return=Decimal(str(round(total_return, 4))),
             annual_return=Decimal(str(round(annual_return, 4))),
-            max_drawdown=Decimal(str(round(max_dd, 4))),
+            max_drawdown=Decimal(str(round(abs(max_dd), 4))),
             win_rate=Decimal(str(round(win_rate, 4))),
             sharpe_ratio=Decimal(str(round(sharpe, 4))),
             trade_count=len(trades)
@@ -150,7 +150,8 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
     return {
         "total_return": round(total_return * 100, 2),
         "annual_return": round(annual_return * 100, 2),
-        "max_drawdown": round(max_dd * 100, 2),
+        # 回撤统一用**正数**表示（行业惯例）：eq["dd"] 本身是负值，取绝对值
+        "max_drawdown": round(abs(max_dd) * 100, 2),
         "win_rate": round(win_rate * 100, 2),
         "sharpe": round(sharpe, 2),
         "trade_count": len(trades),

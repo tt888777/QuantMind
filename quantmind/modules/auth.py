@@ -223,9 +223,24 @@ def login_required(fn):
     return _wrap
 
 
+def admin_required(fn):
+    """接口用：在 login_required 基础上要求 role == 'admin'，否则 403 JSON。
+
+    用于「修改全局配置」这类会影响到所有账号的操作（例如保存大模型 API Key）。
+    """
+    @login_required
+    @wraps(fn)
+    def _wrap(*a, **kw):
+        u = getattr(g, "qm_user", None) or {}
+        if (u.get("role") or "user") != "admin":
+            return jsonify({"ok": False, "code": "FORBIDDEN",
+                            "msg": "该操作仅管理员可用"}), 403
+        return fn(*a, **kw)
+    return _wrap
+
+
 def _fail_key(username: str) -> str:
     return f"{username.lower()}|{client_ip()}"
-
 
 def _too_many(key: str) -> bool:
     now = time.time()

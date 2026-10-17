@@ -211,6 +211,8 @@ class SentimentModelBackend:
 
         self._lock = threading.RLock()
         self._loaded = False
+        self._loading = False
+        self._load_thread = None
         self._error = None
         self._model = None
         self._tokenizer = None
@@ -231,8 +233,37 @@ class SentimentModelBackend:
         return None
 
     # ------------------------------------------------------------------ 加载
+    def is_loading(self):
+        """模型是否正在后台加载中（供接口判断是"稍后再试"还是"不可用"）。"""
+        return self._loading
+
+    def start_background_load(self):
+        """在后台线程加载模型，**立刻返回**，不阻塞调用方。
+
+        为什么需要它：BERT 加载实测要 14s 左右，期间 ``load()`` 一直持锁。
+        若用户在预热完成前点「AI 模型」分析，请求会干等 14s，
+        浏览器端表现为 "Failed to fetch"。走后台加载后请求可以立刻回退关键词。
+        """
+        with self._lock:
+            if self._loaded:
+                return False
+            if self._loading:
+                return False
+            self._loading = True
+
+        def _run():
+            try:
+                self.load()
+            finally:
+                self._loading = False
+
+        t = threading.Thread(target=_run, name="sentiment-load", daemon=True)
+        self._load_thread = t
+        t.start()
+        return True
+
     def load(self):
-        """加载模型。返回 True 表示可用；False 时错误原因见 status()['error']。"""
+        """加载模型（阻塞直到完成）。返回 True 表示可用；False 见 status()['error']。"""
         with self._lock:
             if self._loaded:
                 return True
@@ -352,6 +383,17 @@ class SentimentModelBackend:
     # ------------------------------------------------------------------ 状态
     @property
     def available(self):
+        """模型是否已就绪可用。
+
+        注意：**不阻塞**。若模型还在后台加载中，直接返回 False，
+        让上层的 ``classify_titles`` 立刻回退关键词规则，
+        而不是让 HTTP 请求干等十几秒直到浏览器超时。
+        首次调用（既没加载也没在加载）仍然同步加载，保持原行为。
+        """
+        if self._loaded:
+            return True
+        if self._loading:
+            return False
         return self.load()
 
     def status(self, probe=False):
@@ -359,9 +401,10 @@ class SentimentModelBackend:
 
         ``probe=False``（默认）只看已知状态，**不会触发加载**，
         因此可以安全地放进高频接口的返回体里；
-        ``probe=True`` 会真正尝试加载一次。
+        ``probe=True`` 会尝试加载一次；若模型正在后台加载中则**不会阻塞**，
+        直接返回当前快照（``loading=True``），让前端知道"再等等"。
         """
-        if probe:
+        if probe and not self._loading:
             self.load()
         if self._loaded:
             avail = True
@@ -372,6 +415,7 @@ class SentimentModelBackend:
         return {
             "available": avail,
             "loaded": self._loaded,
+            "loading": self._loading,
             "model_path": self._model_path,
             "load_note": self._load_note,
             "device": self._device,

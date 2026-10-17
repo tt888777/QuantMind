@@ -10,7 +10,8 @@ from modules.data_process import clean, calc_indicators
 from modules.backtest import run_backtest
 from modules.sentiment import collect_sentiment, analyze_sentiments, classify_titles
 from modules.sentiment_model import get_backend as get_sentiment_backend
-from modules.auth import init_auth, current_user
+from modules.auth import init_auth, current_user, admin_required
+from modules import report as report_mod
 from db import get_session, TechnicalIndicator, QuotationDaily, StockBasic
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'))
@@ -278,12 +279,44 @@ def api_pipeline():
         elif step == 'sentiment':
             info = collect_sentiment(sc)
             result = analyze_sentiments(sc, info['news'], engine=d.get('engine', 'keyword'))
+            d['_sent_result'] = result          # 供 report 步骤复用，避免重复采集
             results.append({'step': 'sentiment', 'ok': True,
                             'msg': f"舆情分析：{info['total']} 条，情绪指数 {result['index']}（引擎：{result['engine']}）"})
         elif step == 'report':
+            # 关键修复：以前这里只 append 一句提示，**并没有真的生成文件**。
+            # 现在真正调用报告模块落盘，并把下载地址回传给前端。
             df = load_quotation(sc)
+            if df.empty:
+                results.append({'step': 'report', 'ok': False,
+                                'msg': '报告生成失败：无行情数据'})
+                continue
             bt = run_backtest(sc, short=5, long_=20, init_capital=100000)
-            results.append({'step': 'report', 'ok': True, 'msg': f"报告已生成：{len(df)} 条数据，{bt['trade_count'] if bt else 0} 笔交易" if df is not None else '报告生成失败'})
+            # 复用前面 sentiment 步骤的结果，避免重复采集
+            sent = d.get('_sent_result')
+            if sent is None:
+                try:
+                    info = collect_sentiment(sc)
+                    sent = analyze_sentiments(sc, info['news'],
+                                              engine=d.get('engine', 'keyword'))
+                except Exception:
+                    sent = None
+            fmt = (d.get('report_format') or 'pdf').lower()
+            if fmt not in ('html', 'pdf'):
+                fmt = 'pdf'
+            try:
+                r = report_mod.build_and_save(sc, df, bt, sent, fmt=fmt)
+                results.append({'step': 'report', 'ok': True,
+                                'msg': f"报告已生成：{r['filename']}"
+                                       f"（{r['format'].upper()}，{r['size'] // 1024} KB）",
+                                'url': r['url'], 'filename': r['filename'],
+                                'format': r['format'], 'engine': r['engine']})
+            except report_mod.PdfUnavailable as e:
+                # PDF 引擎缺失时不假装成功：退回 HTML 并说明原因
+                r = report_mod.build_and_save(sc, df, bt, sent, fmt='html')
+                results.append({'step': 'report', 'ok': True,
+                                'msg': f"PDF 引擎不可用（{e}），已改导出 HTML：{r['filename']}",
+                                'url': r['url'], 'filename': r['filename'],
+                                'format': 'html', 'engine': 'html'})
     return jsonify({'ok': True, 'results': results})
 
 
@@ -508,7 +541,7 @@ def api_sentiment_engine_status():
     """查询情感分析引擎（模型）的加载状态。"""
     probe = True
     if request.method == 'POST':
-        probe = bool((request.json or {}).get('probe', True))
+        probe = bool((request.get_json(silent=True) or {}).get('probe', True))
     st = get_sentiment_backend().status(probe=probe)
     st['engine'] = 'model' if st['loaded'] else 'keyword'
     return jsonify({'ok': True, **st})
@@ -607,66 +640,241 @@ def api_export_chart():
 
 @app.route('/api/export_report', methods=['POST'])
 def api_export_report():
+    """生成分析报告。
+
+    真实产出：format=html 写 .html；format=pdf 用 Chrome/Edge 打印成**真 PDF**
+    （找不到任何 PDF 引擎时明确报错，绝不把 HTML 内容塞进 .pdf）。
+    """
     d = request.json or {}
     sc = d.get('stock_code', '600519')
-    fmt = d.get('format', 'html')
+    fmt = (d.get('format') or 'html').lower()
+    if fmt not in ('html', 'pdf'):
+        return jsonify({'ok': False, 'code': 'BAD_FORMAT',
+                        'msg': f'不支持的格式：{fmt}（仅支持 html / pdf）'}), 400
+
     df = load_quotation(sc)
     if df.empty:
-        return jsonify({'ok': False, 'msg': '无数据'})
-    sd = d.get('start_date', '')
-    ed = d.get('end_date', '')
+        return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': f'{sc} 无行情数据，请先导入或生成数据'}), 400
+
+    sd = d.get('start_date', '') or ''
+    ed = d.get('end_date', '') or ''
     if sd:
         df = df[df['date'] >= pd.to_datetime(sd).date()]
     if ed:
         df = df[df['date'] <= pd.to_datetime(ed).date()]
     if df.empty:
-        return jsonify({'ok': False, 'msg': '指定区间无数据'})
-    bt = run_backtest(sc, short=5, long_=20, init_capital=100000, start_date=sd or None, end_date=ed or None)
-    sent_info = collect_sentiment(sc)
-    sent_result = analyze_sentiments(sc, sent_info['news'])
-    html = f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>{sc} 综合量化分析报告</title>
-<style>body{{font-family:'Microsoft YaHei',sans-serif;background:#1a1a2e;color:#eee;padding:40px;max-width:900px;margin:auto}}
-h1{{color:#6366F1}}h2{{color:#A855F7;border-bottom:1px solid #333;padding-bottom:8px}}
-table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #333;padding:8px}}
-.up{{color:#22C55E}}.down{{color:#EF4444}}</style></head><body>
-<h1>{sc} 综合量化分析报告</h1><p>生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-<h2>① 行情概览</h2><p>数据区间: {df.iloc[0]['date']} ~ {df.iloc[-1]['date']}，共 {len(df)} 条</p>
-<h2>② 策略逻辑</h2><p>双均线(5/20)交叉信号 + 情绪指数过滤买入（当前情绪{sent_result['index']}，{'允许买入' if sent_result['index']>=45 else '拒绝买入'}），90% 仓位</p>
-<h2>③ 回测绩效</h2><table><tr><th>指标</th><th>值</th></tr>"""
-    if bt:
-        html += f"<tr><td>总收益</td><td class='{'up' if bt['total_return']>0 else 'down'}'>{bt['total_return']}%</td></tr>"
-        html += f"<tr><td>年化收益</td><td class='{'up' if bt['annual_return']>0 else 'down'}'>{bt['annual_return']}%</td></tr>"
-        html += f"<tr><td>最大回撤</td><td class='down'>{bt['max_drawdown']}%</td></tr>"
-        html += f"<tr><td>胜率</td><td>{bt['win_rate']}%</td></tr>"
-        html += f"<tr><td>夏普比率</td><td>{bt['sharpe']}</td></tr>"
-        html += f"<tr><td>交易笔数</td><td>{bt['trade_count']}</td></tr>"
-    sent_label = '偏乐观' if sent_result['index'] > 55 else '偏悲观' if sent_result['index'] < 45 else '中性'
-    html += f"</table><h2>④ 舆情摘要</h2><p>情绪指数 {sent_result['index']}/100 {sent_label}；看涨{sent_result['pos_pct']}% 看跌{sent_result['neg_pct']}%</p>"
-    if sent_result['events']:
-        html += "<table><tr><th>事件</th><th>类型</th><th>提及</th><th>情感</th></tr>"
-        for ev in sent_result['events'][:5]:
-            html += f"<tr><td>{ev['name']}</td><td>{ev['type']}</td><td>{ev['count']}条</td><td>{ev['score']}</td></tr>"
-        html += "</table>"
-    html += "<h2>⑤ 风险提示</h2><ul>"
-    html += "<li>本报告基于历史数据回测，历史表现不代表未来收益，实盘交易存在亏损风险。</li>"
-    if bt:
-        html += f"<li>策略最大回撤达 {bt['max_drawdown']}%，请根据自身风险承受能力谨慎决策。</li>"
-        if bt['trade_count'] < 10:
-            html += f"<li>回测交易笔数仅 {bt['trade_count']} 次，样本量不足，统计结果可能不具代表性。</li>"
-        if abs(bt['sharpe']) < 0.5:
-            html += "<li>夏普比率较低，策略风险调整后收益不理想，需谨慎参考。</li>"
-    html += f"<li>数据区间 {df.iloc[0]['date']} ~ {df.iloc[-1]['date']}，共 {len(df)} 条，数据质量直接影响分析结论。</li>"
-    if len(df) < 250:
-        html += f"<li>数据样本仅 {len(df)} 条（不足一年），回测结果可能存在过拟合风险。</li>"
-    html += "<li>舆情研判由 AI 基于关键词分析生成，无法保证信息完整性与判断准确性，仅供参考。</li>"
-    html += "<li>双均线策略为趋势跟踪型策略，在震荡行情中可能频繁产生虚假信号导致亏损。</li>"
-    html += "</ul></body></html>"
-    filepath = os.path.join(EXPORT_DIR, f'{sc}_report.{fmt}')
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(html)
-    return jsonify({'ok': True, 'msg': '报告已导出', 'url': f'/exports/{sc}_report.{fmt}',
-                    'filename': f'{sc}_report.{fmt}', 'stock_code': sc, 'format': fmt})
+        return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': '指定区间内无数据'}), 400
+
+    bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
+                      start_date=sd or None, end_date=ed or None)
+    try:
+        sent_info = collect_sentiment(sc)
+        sent = analyze_sentiments(sc, sent_info['news'],
+                                  engine=d.get('engine', 'keyword'))
+    except Exception as e:
+        print(f'[report] 舆情部分失败，将跳过：{type(e).__name__}: {e}')
+        sent = None
+
+    try:
+        r = report_mod.build_and_save(sc, df, bt, sent, fmt=fmt, start=sd, end=ed)
+    except report_mod.PdfUnavailable as e:
+        return jsonify({'ok': False, 'code': 'PDF_UNAVAILABLE',
+                        'msg': 'PDF 引擎不可用，请改用 HTML 导出',
+                        'detail': str(e)}), 500
+
+    return jsonify({
+        'ok': True,
+        'msg': 'PDF 报告已生成' if fmt == 'pdf' else 'HTML 报告已生成',
+        'url': r['url'], 'filename': r['filename'],
+        'stock_code': sc, 'format': r['format'],
+        'engine': r['engine'], 'size': r['size'],
+        'risk_source': r.get('risk_source'),
+    })
+
+
+@app.route('/api/risk_engine_status', methods=['GET', 'POST'])
+def api_risk_engine_status():
+    """风险提示引擎状态。POST 可用于「测试连接」（会真实调用一次 API）。"""
+    from modules import risk_llm
+    st = risk_llm.status()
+    # GET 时不能直接读 request.json（无 Content-Type 会抛 415），用 silent 兜底
+    body = (request.get_json(silent=True) or {}) if request.method == 'POST' else {}
+    if body.get('probe'):
+        tmp = {k: body.get(k) for k in ('provider', 'base_url', 'model', 'api_key') if body.get(k)}
+        st['probe'] = risk_llm.probe(tmp or None)
+    u = current_user() or {}
+    st['can_edit'] = (u.get('role') or '') == 'admin'
+    return jsonify({'ok': True, **st})
+
+
+@app.route('/api/llm_config', methods=['GET', 'POST', 'DELETE'])
+def api_llm_config():
+    """大模型配置：GET 读取（Key 脱敏）/ POST 保存（仅管理员）/ DELETE 清除（仅管理员）。
+
+    Key 存在服务端 ``quantmind/.llm_config.json``（已 gitignore、权限 0600），
+    **永远不返回完整 Key**，前端输入框留空表示"保持原值"。
+    """
+    from modules import risk_llm
+
+    def _guard():
+        u = current_user() or {}
+        if (u.get('role') or '') != 'admin':
+            return jsonify({'ok': False, 'code': 'FORBIDDEN',
+                            'msg': '该操作仅管理员可用（演示账号 demo 就是管理员）'}), 403
+        return None
+
+    if request.method == 'GET':
+        st = risk_llm.status()
+        u = current_user() or {}
+        st['can_edit'] = (u.get('role') or '') == 'admin'
+        return jsonify({'ok': True, 'config': st})
+
+    denied = _guard()
+    if denied:
+        return denied
+
+    if request.method == 'DELETE':
+        try:
+            st = risk_llm.reset_config()
+        except Exception as e:
+            return jsonify({'ok': False, 'code': 'RESET_FAILED',
+                            'msg': f'清除失败：{e}'}), 500
+        st['can_edit'] = True
+        return jsonify({'ok': True, 'msg': '已清除大模型配置，风险提示回到模板模式',
+                        'config': st})
+
+    d = request.json or {}
+    if not isinstance(d, dict):
+        return jsonify({'ok': False, 'code': 'BAD_BODY', 'msg': '请求体必须是对象'}), 400
+
+    # 前端「测试连接」按钮：带 probe=true 时只测不存
+    if d.get('probe'):
+        tmp = {k: d.get(k) for k in ('provider', 'base_url', 'model', 'api_key') if d.get(k)}
+        return jsonify({'ok': True, 'probe': risk_llm.probe(tmp or None)})
+
+    try:
+        st = risk_llm.save_config(d)
+    except ValueError as e:
+        return jsonify({'ok': False, 'code': 'BAD_CONFIG', 'msg': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'code': 'SAVE_FAILED',
+                        'msg': f'配置保存失败：{e}'}), 500
+    st['can_edit'] = True
+    return jsonify({'ok': True, 'msg': '配置已保存', 'config': st})
+
+
+@app.route('/api/risk_preview', methods=['POST'])
+def api_risk_preview():
+    """并排返回「模板版」与「大模型版」风险提示，供报告中心对比。
+
+    大模型不可用或生成失败时，``llm_items`` 为 null 且 ``error`` 说明原因，
+    前端据此提示，**不弹错误框**。
+    """
+    from modules import risk_llm
+
+    d = request.json or {}
+    sc = d.get('stock_code', '600519')
+    df = load_quotation(sc)
+    if df.empty:
+        return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': f'{sc} 无行情数据'}), 400
+
+    sd = d.get('start_date', '') or ''
+    ed = d.get('end_date', '') or ''
+    bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
+                      start_date=sd or None, end_date=ed or None)
+    try:
+        info = collect_sentiment(sc)
+        sent = analyze_sentiments(sc, info['news'], engine=d.get('engine', 'keyword'))
+    except Exception:
+        sent = None
+
+    data = report_mod.build_report_data(sc, df, bt, sent, sd, ed)
+    tpl = report_mod.load_template()
+
+    template_items = report_mod.template_risks(data, tpl)
+    out = {
+        'ok': True,
+        'stock_code': sc,
+        'template_items': template_items,
+        'llm_items': None,
+        'llm_summary': None,
+        'engine': 'template',
+        'model': None,
+        'elapsed_ms': None,
+        'dropped': [],
+        'error': None,
+        'metrics': data['metrics'],
+    }
+
+    if not risk_llm.enabled():
+        out['error'] = risk_llm.status()['reason']
+        return jsonify(out)
+
+    res, meta = risk_llm.generate_full(data)
+    if res and (res.get('risks') or res.get('summary')):
+        out.update({'llm_items': res.get('risks') or [],
+                    'llm_summary': res.get('summary'),
+                    'engine': 'llm',
+                    'model': meta.get('model'), 'elapsed_ms': meta.get('elapsed_ms'),
+                    'dropped': meta.get('dropped') or [],
+                    'truncated': bool(meta.get('truncated'))})
+    else:
+        out['error'] = meta.get('error')
+        out['elapsed_ms'] = meta.get('elapsed_ms')
+        out['raw'] = (meta.get('raw') or '')[:400]
+    return jsonify(out)
+
+
+@app.route('/api/report_template', methods=['GET', 'POST', 'DELETE'])
+def api_report_template():
+    """报告模板：GET 读取 / POST 保存（局部合并）/ DELETE 恢复默认。"""
+    if request.method == 'GET':
+        return jsonify({'ok': True, 'template': report_mod.load_template(),
+                        'themes': report_mod.theme_options()})
+    if request.method == 'DELETE':
+        return jsonify({'ok': True, 'msg': '已恢复默认模板',
+                        'template': report_mod.reset_template()})
+    patch = request.json or {}
+    if not isinstance(patch, dict):
+        return jsonify({'ok': False, 'code': 'BAD_BODY', 'msg': '请求体必须是对象'}), 400
+    try:
+        tpl = report_mod.save_template(patch)
+    except Exception as e:
+        return jsonify({'ok': False, 'code': 'SAVE_FAILED',
+                        'msg': f'模板保存失败：{e}'}), 500
+    return jsonify({'ok': True, 'msg': '模板已保存', 'template': tpl,
+                    'themes': report_mod.theme_options()})
+
+
+@app.route('/api/report_preview', methods=['POST'])
+def api_report_preview():
+    """生成报告 HTML 片段（不落盘），供报告中心右侧实时预览模板效果。"""
+    d = request.json or {}
+    sc = d.get('stock_code', '600519')
+    df = load_quotation(sc)
+    if df.empty:
+        return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': f'{sc} 无行情数据'}), 400
+    sd = d.get('start_date', '') or ''
+    ed = d.get('end_date', '') or ''
+    bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
+                      start_date=sd or None, end_date=ed or None)
+    try:
+        sent_info = collect_sentiment(sc)
+        sent = analyze_sentiments(sc, sent_info['news'], engine=d.get('engine', 'keyword'))
+    except Exception:
+        sent = None
+    tpl = d.get('template') if isinstance(d.get('template'), dict) else None
+    data = report_mod.build_report_data(sc, df, bt, sent, sd, ed)
+    html = report_mod.render_html(data, tpl or report_mod.load_template())
+    return jsonify({'ok': True, 'html': html, 'summary': {
+        'rows': data['rows'], 'start': data['start'], 'end': data['end'],
+        'sentiment_index': data['sentiment_index'],
+        'total_return': (bt or {}).get('total_return'),
+        'max_drawdown': (bt or {}).get('max_drawdown'),
+        'win_rate': (bt or {}).get('win_rate'),
+        'sharpe': (bt or {}).get('sharpe'),
+        'trade_count': (bt or {}).get('trade_count'),
+    }})
 
 
 @app.route('/api/reports', methods=['GET'])
@@ -710,14 +918,31 @@ def serve_export(filename):
     return send_from_directory(EXPORT_DIR, filename)
 
 
+def _warmup_in_background():
+    """在后台线程预热情感模型。
+
+    为什么不在主线程预热：BERT 加载要十几秒，主线程阻塞期间端口尚未监听，
+    浏览器连不上就会报 "Failed to fetch"。放到后台线程后，端口立刻可用，
+    用户可以先登录、看行情；等模型加载完，舆情页的「AI 模型」引擎自然可用。
+    加载期间点「AI 模型」分析不会干等，会自动回退关键词规则。
+    """
+    try:
+        print('[sentiment] 正在后台预热情感模型（加载期间舆情分析自动走关键词规则）…')
+        started = get_sentiment_backend().start_background_load()
+        if not started:
+            print('[sentiment] 模型已加载，跳过预热')
+    except Exception as e:  # 预热失败绝不影响主服务
+        print(f'[sentiment] 预热启动失败（不影响使用）：{type(e).__name__}: {e}')
+
+
 if __name__ == '__main__':
-    # 可选预热：QUANTMIND_SENTIMENT_WARMUP=1 时启动即加载情感模型，
-    # 避免第一个请求等待十几秒；默认关闭以保持启动速度。
+    # 可选预热：QUANTMIND_SENTIMENT_WARMUP=1 时，启动后在后台线程加载情感模型。
+    # 注意：必须是后台线程，否则会阻塞端口监听（见 _warmup_in_background 注释）。
     if os.environ.get('QUANTMIND_SENTIMENT_WARMUP', '0') == '1':
-        print('[sentiment] 预热情感模型 ...')
-        _ok = get_sentiment_backend().load()
-        print('[sentiment] ' + ('模型已加载' if _ok else '模型不可用，将回退关键词规则'))
-    app.run(debug=False,
-            host=os.environ.get('QUANTMIND_HOST', '127.0.0.1'),
-            port=int(os.environ.get('QUANTMIND_PORT', '5000')),
-            threaded=True)
+        _warmup_in_background()
+
+    _host = os.environ.get('QUANTMIND_HOST', '127.0.0.1')
+    _port = int(os.environ.get('QUANTMIND_PORT', '5000'))
+    print(f'[server] 服务地址 http://{_host}:{_port}')
+    print('[server] 演示账号 demo / demo123456（也可自行注册）')
+    app.run(debug=False, host=_host, port=_port, threaded=True)

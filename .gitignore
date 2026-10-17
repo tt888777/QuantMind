@@ -38,6 +38,10 @@ quantmind/quantmind_local.db
 # 会话密钥（首次启动自动生成，绝不要提交）
 quantmind/.secret_key
 
+# 大模型 API Key 配置（前端「配置」弹窗保存，含明文 Key，绝不要提交）
+quantmind/.llm_config.json
+quantmind/.llm_config.json.tmp
+
 # ================= ML 训练环境（不要提交） =================
 ml/.venv/
 ml/__pycache__/

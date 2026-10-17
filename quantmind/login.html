@@ -38,32 +38,14 @@ body{
 .shell{position:relative;z-index:1;min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr}
 
 /* ---------- 左侧品牌区 ---------- */
-.brandside{padding:52px 56px;display:flex;flex-direction:column;justify-content:space-between;
+.brandside{padding:52px 56px;display:flex;flex-direction:column;justify-content:center;
   border-right:1px solid var(--border)}
-.brand{display:flex;align-items:center;gap:11px}
-.brand-mark{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:700;
-  font-size:17px;color:#fff;background:linear-gradient(135deg,var(--indigo),var(--purple));
-  box-shadow:0 0 22px var(--glow-indigo)}
-.brand-name{font-weight:600;font-size:16px;letter-spacing:-.02em}
-.brand-sub{font-size:10.5px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
 
-.hero h1{font-size:38px;line-height:1.22;font-weight:600;letter-spacing:-.035em;margin-bottom:16px}
+.hero{margin:auto 0;max-width:520px}
+.hero h1{font-size:42px;line-height:1.24;font-weight:600;letter-spacing:-.035em;margin-bottom:22px}
 .hero h1 em{font-style:normal;background:linear-gradient(120deg,var(--indigo),var(--purple) 70%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p{font-size:14px;line-height:1.75;color:var(--muted);max-width:430px}
-
-.feats{display:flex;flex-direction:column;gap:14px;margin-top:34px}
-.feat{display:flex;gap:12px;align-items:flex-start}
-.feat-ico{width:30px;height:30px;flex-shrink:0;border-radius:8px;display:grid;place-items:center;
-  background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22)}
-.feat-ico svg{width:15px;height:15px;stroke:var(--indigo);fill:none;stroke-width:1.8}
-.feat-t{font-size:13.5px;font-weight:500;margin-bottom:3px}
-.feat-d{font-size:12px;color:var(--dim);line-height:1.6}
-
-.brandfoot{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--dim)}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;
-  border:1px solid var(--border);font-size:11px;color:var(--muted)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.hero p{font-size:14.5px;line-height:1.85;color:var(--muted);max-width:440px}
 
 /* ---------- 右侧表单区 ---------- */
 .formside{display:flex;align-items:center;justify-content:center;padding:40px 32px}
@@ -147,48 +129,11 @@ body{
 <div class="grid-bg"></div>
 
 <div class="shell">
-  <!-- ======= 左：品牌 ======= -->
+  <!-- ======= 左：标语 ======= -->
   <section class="brandside">
-    <div class="brand">
-      <div class="brand-mark">Q</div>
-      <div>
-        <div class="brand-name">QuantMind</div>
-        <div class="brand-sub">AI Quant Platform</div>
-      </div>
-    </div>
-
     <div class="hero">
       <h1>把数据、情绪与策略<br>放进<em>同一条流水线</em></h1>
       <p>从行情获取、清洗、技术指标，到财经新闻情感研判、双均线回测与报告导出——一个账号，一条链路跑完。</p>
-
-      <div class="feats">
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h7"/></svg></div>
-          <div>
-            <div class="feat-t">多源数据接入</div>
-            <div class="feat-d">CSV / Excel / JSON / 通达信 / 行情接口，自动识别列语义</div>
-          </div>
-        </div>
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3a9 9 0 100 18 9 9 0 000-18zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg></div>
-          <div>
-            <div class="feat-t">中文财经情感模型</div>
-            <div class="feat-d">DAPT 域自适应 + 财经新闻 LoRA，新闻测试集 Acc 0.829 / Macro-F1 0.808</div>
-          </div>
-        </div>
-        <div class="feat">
-          <div class="feat-ico"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg></div>
-          <div>
-            <div class="feat-t">回测与报告</div>
-            <div class="feat-d">收益 / 回撤 / 夏普 / 胜率，一键导出图表与 HTML 报告</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="brandfoot">
-      <span class="pill"><span class="dot"></span>服务在线</span>
-      <span>QuantMind · 实习实训项目</span>
     </div>
   </section>
 

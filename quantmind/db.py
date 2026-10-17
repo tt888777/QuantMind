@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from sqlalchemy import (create_engine, Column, String, Date, DateTime, DECIMAL,
-                        Integer, BigInteger, Text, JSON, Boolean)
+                        Integer, BigInteger, Text, JSON, Boolean,
+                        UniqueConstraint, Index)
 from sqlalchemy.orm import declarative_base, sessionmaker
 from config import DB_URL
 
@@ -41,6 +42,56 @@ class QuotationDaily(Base):
     volume = Column(BigInteger, default=0)
     amount = Column(DECIMAL(18, 2), default=0)
     data_source = Column(String(32))
+
+
+class QuotationMinute(Base):
+    """分钟级行情（5 分钟 / 30 分钟两档）。
+
+    与 `quotation_daily` 分开建表而不是加一列 `period`，原因是：
+    日线表被回测、指标计算、报告多处按 `(stock_code, trade_date)` 读取，
+    混进分钟数据会污染这些已有路径。独立表最安全。
+
+    唯一索引 `(stock_code, period, trade_time)`：采集脚本可重复运行，
+    重复采到同一根 bar 时用 upsert 覆盖，不会产生重复行。
+    """
+    __tablename__ = "quotation_minute"
+    __table_args__ = (
+        UniqueConstraint("stock_code", "period", "trade_time",
+                         name="uq_minute_code_period_time"),
+        Index("ix_minute_code_period", "stock_code", "period"),
+    )
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
+    stock_code = Column(String(16), nullable=False)
+    period = Column(Integer, nullable=False)        # 5 / 30，单位分钟
+    trade_time = Column(DateTime, nullable=False)   # 该根 bar 的结束时刻
+    open = Column(DECIMAL(12, 4))
+    high = Column(DECIMAL(12, 4))
+    low = Column(DECIMAL(12, 4))
+    close = Column(DECIMAL(12, 4))
+    volume = Column(BigInteger, default=0)
+    data_source = Column(String(32))
+
+
+class MinuteCollectLog(Base):
+    """分钟数据采集日志。
+
+    每次采集（含失败）落一条，用于：
+    - 前端「分钟数据」页展示最近采集记录，让演示时能说清数据是哪来的；
+    - 排查「某只标的为什么没有数据」—— 失败原因在这里有原文（新浪超时/返回空等）。
+
+    高频写入但量很小（一天几十条），不建额外索引，按 id 倒序取最近 N 条即可。
+    """
+    __tablename__ = "minute_collect_log"
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
+    stock_code = Column(String(16), nullable=False)
+    period = Column(Integer, nullable=False)
+    ok = Column(Integer, default=1)                 # 1 成功 / 0 失败
+    rows_fetched = Column(Integer, default=0)       # 接口返回根数
+    rows_added = Column(Integer, default=0)         # 实际新增（去重后）
+    rows_skipped = Column(Integer, default=0)       # 已存在被跳过
+    data_source = Column(String(32))
+    message = Column(String(255))                   # 失败原因 / 摘要
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class TechnicalIndicator(Base):

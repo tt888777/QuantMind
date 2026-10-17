@@ -380,6 +380,11 @@ body{
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
       量化回测
     </div>
+    <div class="nav-item" data-view="minute">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path stroke-linecap="round" d="M12 7.5V12l3 2"/></svg>
+      分钟级回测
+      <span class="nav-badge">5m/30m</span>
+    </div>
     <div class="nav-group">编排</div>
     <div class="nav-item" data-view="pipeline">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path stroke-linecap="round" d="M8 6h6a4 4 0 014 4v0M16 18h-6a4 4 0 01-4-4v0"/></svg>
@@ -815,6 +820,165 @@ body{
         </div>
       </section>
 
+      <!-- ===== MINUTE BACKTEST ===== -->
+      <section class="view" id="view-minute">
+        <div class="page-title">分钟级回测</div>
+        <div class="page-desc">5 分钟 / 30 分钟 K 线 · 真实 A 股成本模型（佣金万三最低 5 元 / 印花税千一卖出 / 过户费双向 / 滑点万二）· 成本侵蚀拆解</div>
+
+        <!-- 数据概览 -->
+        <div class="bento" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+          <div class="card card-glow" style="padding:16px">
+            <div class="stat-label">30 分钟覆盖</div>
+            <div class="stat-val" id="mStat30" style="font-size:22px">—</div>
+            <div class="delta" id="mStat30Sub">加载中…</div>
+          </div>
+          <div class="card card-glow" style="padding:16px">
+            <div class="stat-label">5 分钟覆盖</div>
+            <div class="stat-val" id="mStat5" style="font-size:22px">—</div>
+            <div class="delta" id="mStat5Sub">加载中…</div>
+          </div>
+          <div class="card card-glow" style="padding:16px">
+            <div class="stat-label">数据库总行数</div>
+            <div class="stat-val" id="mStatRows" style="font-size:22px">—</div>
+            <div class="delta">quotation_minute 表</div>
+          </div>
+          <div class="card card-glow" style="padding:16px">
+            <div class="stat-label">最近采集</div>
+            <div class="stat-val" id="mStatLast" style="font-size:15px">—</div>
+            <div class="delta" id="mStatLastSub">—</div>
+          </div>
+        </div>
+
+        <div class="grid" style="grid-template-columns:.75fr 1.25fr">
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">回测配置</div>
+              <div class="field"><label>周期</label>
+                <select class="select" id="mPeriodSel">
+                  <option value="30" selected>30 分钟（约 626 交易日 / 2.5 年）</option>
+                  <option value="5">5 分钟（约 105 交易日）</option>
+                </select>
+              </div>
+              <div class="field"><label>标的</label>
+                <select class="select" id="mStockSel"></select>
+              </div>
+              <div class="row" style="gap:8px;margin-bottom:14px">
+                <div class="field" style="flex:1;margin:0"><label>初始资金</label><input class="input" id="mCapital" value="1000000" style="text-align:center"></div>
+                <div class="field" style="flex:1;margin:0"><label>每手股数</label>
+                  <select class="select" id="mLotSel">
+                    <option value="100" selected>100（真实）</option>
+                    <option value="1">1（零股模拟）</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field"><label>策略筛选</label>
+                <select class="select" id="mStratSel">
+                  <option value="" selected>全部（5 组对比）</option>
+                  <option value="dual_ma">双均线交叉</option>
+                  <option value="boll">布林带突破</option>
+                  <option value="momentum">动量策略</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" id="runMinuteBt">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg>
+                开始回测
+              </button>
+              <div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.18);font-size:11px;line-height:1.6;color:var(--muted)">
+                <b style="color:#a5a8ff">为什么看「损耗」？</b><br>
+                分钟策略单轮往返成本约 0.13%~0.15%，笔数越多亏越狠。<br>
+                <b style="color:#a5a8ff">为什么「每手股数」可选 1？</b><br>
+                100 是真实约束；1 仅用于评估策略本身。
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">分钟数据采集</div>
+              <div class="row" style="gap:8px;margin-bottom:10px">
+                <button class="btn btn-ghost btn-sm" id="mQuickCollect" style="flex:1;justify-content:center">采集当前标的</button>
+                <button class="btn btn-ghost btn-sm" id="mBatchCollect" style="flex:1;justify-content:center">批量采集 Top 5</button>
+              </div>
+              <div id="mCollectStatus" style="font-size:11.5px;color:var(--dim);line-height:1.6">未采集 · 数据源：新浪 money.finance（主）/ 腾讯 ifzq（备）</div>
+            </div>
+
+            <div class="card">
+              <div class="section-title">最近采集日志</div>
+              <div class="tbl-wrap" style="max-height:190px">
+                <table class="tbl">
+                  <thead><tr><th>时间</th><th>标的</th><th>周期</th><th>结果</th><th>新增</th></tr></thead>
+                  <tbody id="mLogBody"><tr><td colspan="5" style="text-align:center;color:var(--dim)">加载中…</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="bento" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">最佳策略</div><div style="font-size:14px;font-weight:600;margin-top:3px" id="mBestName">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">实际收益</div><div style="font-size:21px;font-weight:600" id="mBestRet">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">成本损耗</div><div style="font-size:21px;font-weight:600" id="mBestDrag">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">年化</div><div style="font-size:21px;font-weight:600" id="mBestAnnual">—</div></div>
+              <div class="card" style="padding:14px;text-align:center"><div style="font-size:11px;color:var(--muted)">夏普</div><div style="font-size:21px;font-weight:600" id="mBestSharpe">—</div></div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">策略对比 · 扣费前 vs 扣费后</div>
+              <div id="mChartCompare" style="height:230px"></div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px">
+              <div class="section-title">最佳策略资金曲线</div>
+              <div id="mChartEquity" style="height:200px"></div>
+            </div>
+
+            <div class="card">
+              <div class="section-title">策略明细 <span class="tag" id="mDetailTag">—</span></div>
+              <div class="tbl-wrap" style="max-height:240px">
+                <table class="tbl">
+                  <thead><tr><th>策略</th><th>参数</th><th>轮次</th><th>未扣费</th><th>实际</th><th>损耗</th><th>年化</th><th>回撤</th><th>胜率</th><th>夏普</th></tr></thead>
+                  <tbody id="mDetailBody"><tr><td colspan="10" style="text-align:center;color:var(--dim)">点击「开始回测」查看结果</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 多标的横评 -->
+        <div class="card" style="margin-top:16px">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div class="section-title" style="margin:0">多标的横评 <span class="tag">标的 × 策略矩阵</span></div>
+            <div class="row" style="gap:8px">
+              <select class="select" id="mMatrixLimit" style="width:130px;font-size:12px;padding:5px 10px">
+                <option value="10">前 10 只</option>
+                <option value="20">前 20 只</option>
+                <option value="30" selected>全部 30 只</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="runMatrix">跑横评（约 45 秒）</button>
+            </div>
+          </div>
+          <div id="mMatrixSummary" style="font-size:12px;color:var(--muted);margin-bottom:10px">尚未运行。横评会遍历标的所有策略组合，用于回答「哪类标的适合作分钟策略」。</div>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px">各标的最佳策略（按扣费后收益）</div>
+              <div class="tbl-wrap" style="max-height:320px">
+                <table class="tbl">
+                  <thead><tr><th>标的</th><th>策略</th><th>轮次</th><th>未扣费</th><th>实际</th><th>损耗</th></tr></thead>
+                  <tbody id="mStockBoard"><tr><td colspan="6" style="text-align:center;color:var(--dim)">—</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px">策略平均表现</div>
+              <div class="tbl-wrap" style="max-height:320px">
+                <table class="tbl">
+                  <thead><tr><th>策略</th><th>样本</th><th>均轮次</th><th>均未扣费</th><th>均实际</th><th>正收益</th></tr></thead>
+                  <tbody id="mStratBoard"><tr><td colspan="6" style="text-align:center;color:var(--dim)">—</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== PIPELINE ===== -->
       <section class="view" id="view-pipeline">
         <div class="page-title">分析流水线</div>
@@ -1212,7 +1376,7 @@ const MODEL_NAME='DAPT + 财经新闻 LoRA';
 const navItems=document.querySelectorAll('.nav-item');
 const views=document.querySelectorAll('.view');
 const crumb=document.getElementById('crumbCurrent');
-const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',pipeline:'分析流水线',report:'报告中心',profile:'个人中心'};
+const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',minute:'分钟级回测',pipeline:'分析流水线',report:'报告中心',profile:'个人中心'};
 navItems.forEach(it=>it.addEventListener('click',()=>{
   navItems.forEach(i=>i.classList.remove('active'));
   it.classList.add('active');
@@ -1318,6 +1482,7 @@ function initChartsFor(v){
   if(v==='dashboard'){chartDashPerf();chartDashSent()}
   if(v==='sentiment'){chartSentIndex()}
   if(v==='viz'){loadRealKline();chartReturns()}
+  if(v==='minute'){minuteInit()}
   Object.values(charts).forEach(c=>c&&c.resize());
 }
 
@@ -2733,6 +2898,311 @@ navItems.forEach(it=>it.addEventListener('click',()=>{
   if(v==='report'){loadReportHistory();generateReportPreview()}
   if(v==='profile')setTimeout(loadLogs,60);
 }));
+
+/* ==================================================================
+   分钟级回测页
+   ------------------------------------------------------------------
+   与日线回测（view-backtest）完全独立：
+   - 日线走 /api/backtest，成本按比例、无最低佣金；
+   - 分钟走 /api/minute/*，成本按 A 股真实规则（最低 5 元佣金 / 印花税卖出）。
+   两套成本模型刻意不共用 —— 混用会让日线结果悄悄变差，且难以解释。
+
+   色彩约定：涨=红、跌=绿（A 股习惯）。
+   ================================================================== */
+const M_COLOR={up:'#EF4444',down:'#22C55E',accent:'#6366F1',dim:'#8A8F98'};
+let minuteState={inited:false, stocks:[], lastResult:null};
+
+function mfmtNum(v,digits=0){
+  if(v===null||v===undefined||isNaN(v))return '—';
+  return Number(v).toLocaleString('zh-CN',{minimumFractionDigits:digits,maximumFractionDigits:digits});
+}
+function mPct(v){
+  if(v===null||v===undefined||isNaN(v))return '—';
+  const n=Number(v);
+  return (n>0?'+':'')+n.toFixed(2)+'%';
+}
+/* 收益着色：正红负绿。用于所有金额/百分比展示，避免前后不一致。 */
+function mColorOf(v){return Number(v)>0?M_COLOR.up:(Number(v)<0?M_COLOR.down:'var(--dim)')}
+function mSpanPct(v){
+  return `<span class="mono" style="color:${mColorOf(v)}">${mPct(v)}</span>`;
+}
+
+async function minuteInit(){
+  if(minuteState.inited){minuteRefreshAll();return}
+  minuteState.inited=true;
+  await minuteLoadStocks();
+  minuteLoadLogs();
+}
+
+async function minuteRefreshAll(){
+  await minuteLoadStocks();
+  minuteLoadLogs();
+}
+
+/* ---------- 标的清单 + 数据概览 ---------- */
+async function minuteLoadStocks(){
+  let r;
+  try{ r=await fetch(API+'/minute/stocks').then(x=>x.json()); }
+  catch(e){ console.log('minute stocks failed',e); return; }
+
+  if(!r.ok||!r.stocks||!r.stocks.length){
+    const sel=document.getElementById('mStockSel');
+    if(sel)sel.innerHTML='<option value="">暂无分钟数据，请先采集</option>';
+    ['mStat30','mStat5','mStatRows'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—'});
+    return;
+  }
+
+  minuteState.stocks=r.stocks;
+  // 下拉：只列出「当前所选周期」有数据的标的
+  const period=document.getElementById('mPeriodSel')?.value||'30';
+  const sel=document.getElementById('mStockSel');
+  if(sel){
+    const prev=sel.value;
+    sel.innerHTML='';
+    r.stocks.filter(s=>s.periods[period]).forEach(s=>{
+      const o=document.createElement('option');
+      o.value=s.code;o.textContent=`${s.code} ${s.name}`;
+      sel.appendChild(o);
+    });
+    if(prev&&r.stocks.some(s=>s.code===prev&&s.periods[period]))sel.value=prev;
+    else if(currentStock&&r.stocks.some(s=>s.code===currentStock&&s.periods[period]))sel.value=currentStock;
+  }
+
+  // 概览卡：周期 → 只数 / 行数 / 时间范围
+  const p30=r.stocks.filter(s=>s.periods[30]), p5=r.stocks.filter(s=>s.periods[5]);
+  const total=arr=>arr.reduce((a,s)=>a+(s.periods[30]?.rows||0)+(s.periods[5]?.rows||0),0);
+  const el30=document.getElementById('mStat30'), el30s=document.getElementById('mStat30Sub');
+  if(el30)el30.textContent=p30.length?`${p30.length} 只 / ${mfmtNum(p30.reduce((a,s)=>a+s.periods[30].rows,0))} 行`:'—';
+  if(el30s)el30s.textContent=p30.length?`${p30[0].periods[30].start.slice(0,10)} ~ ${p30[0].periods[30].end.slice(0,10)}`:'无数据';
+  const el5=document.getElementById('mStat5'), el5s=document.getElementById('mStat5Sub');
+  if(el5)el5.textContent=p5.length?`${p5.length} 只 / ${mfmtNum(p5.reduce((a,s)=>a+s.periods[5].rows,0))} 行`:'—';
+  if(el5s)el5s.textContent=p5.length?`${p5[0].periods[5].start.slice(0,10)} ~ ${p5[0].periods[5].end.slice(0,10)}`:'无数据';
+  const elRows=document.getElementById('mStatRows');
+  if(elRows)elRows.textContent=mfmtNum(total(r.stocks));
+}
+
+/* ---------- 采集日志 ---------- */
+async function minuteLoadLogs(){
+  const tb=document.getElementById('mLogBody');
+  if(!tb)return;
+  try{
+    const r=await fetch(API+'/minute/logs?limit=12').then(x=>x.json());
+    if(!r.ok||!r.logs||!r.logs.length){
+      tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--dim)">暂无采集记录</td></tr>';
+      return;
+    }
+    tb.innerHTML=r.logs.map(l=>{
+      const badge=l.ok?'<span class="badge b-green">成功</span>':'<span class="badge b-red">失败</span>';
+      const add=l.ok?mfmtNum(l.added):`<span title="${(l.message||'').replace(/"/g,'&quot;')}" style="color:var(--dim)">${(l.message||'').slice(0,14)}</span>`;
+      return `<tr><td class="mono" style="font-size:11px">${l.time.slice(5,16)}</td><td class="mono">${l.code}</td><td class="mono">${l.period}m</td><td>${badge}</td><td class="mono">${add}</td></tr>`;
+    }).join('');
+    const last=r.logs[0];
+    const elL=document.getElementById('mStatLast'), elLs=document.getElementById('mStatLastSub');
+    if(elL)elL.textContent=last.time.slice(5,16);
+    if(elLs)elLs.textContent=`${last.code} ${last.period}m · ${last.ok?'成功':'失败'}`;
+  }catch(e){ tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--dim)">加载失败</td></tr>'; }
+}
+
+/* ---------- 采集 ---------- */
+async function minuteCollect(codes){
+  const st=document.getElementById('mCollectStatus');
+  const period=document.getElementById('mPeriodSel')?.value||'30';
+  const btnCodes=Array.isArray(codes)?codes:[codes];
+  if(btnCodes.length===1&&!btnCodes[0]){if(st)st.textContent='请先选择标的';return}
+  if(st){st.textContent=`采集中…（${btnCodes.length} 只 × ${period}m，约 ${btnCodes.length*0.6}s）`;st.style.color='var(--muted)'}
+  try{
+    const r=await callAPI('/minute/collect',{codes:btnCodes,periods:[Number(period)]});
+    if(st){st.textContent=r.msg||'完成';st.style.color=r.failed?'#F59E0B':'var(--muted)'}
+    await minuteRefreshAll();
+  }catch(e){
+    if(st){st.textContent='采集失败：'+e.message;st.style.color='#EF4444'}
+  }
+}
+
+/* ---------- 单标的回测 ---------- */
+async function minuteRunBacktest(){
+  const sel=document.getElementById('mStockSel');
+  const code=sel?.value;
+  if(!code){alert('暂无分钟数据，请先采集');return}
+  const period=Number(document.getElementById('mPeriodSel')?.value||30);
+  const cap=Number(document.getElementById('mCapital')?.value||1000000);
+  const lot=Number(document.getElementById('mLotSel')?.value||100);
+  const strat=document.getElementById('mStratSel')?.value||'';
+
+  const btn=document.getElementById('runMinuteBt');
+  if(btn){btn.disabled=true;btn.innerHTML='回测中…'}
+  ['mChartCompare','mChartEquity'].forEach(id=>{const c=charts[id];if(c)c.showLoading({text:'计算中…',color:M_COLOR.accent,textColor:M_COLOR.dim})});
+
+  try{
+    const r=await callAPI('/minute/backtest',{stock_code:code,period,init_capital:cap,lot_size:lot,strategy:strat||undefined});
+    if(!r.ok){alert(r.msg||'回测失败');return}
+    minuteState.lastResult=r;
+    minuteRenderResult(r);
+  }catch(e){
+    alert('回测失败：'+e.message);
+  }finally{
+    ['mChartCompare','mChartEquity'].forEach(id=>{const c=charts[id];if(c)c.hideLoading()});
+    if(btn){btn.disabled=false;btn.innerHTML='<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg> 开始回测'}
+  }
+}
+
+function minuteRenderResult(r){
+  const t=r.table||[];
+  if(!t.length)return;
+
+  // 顶部卡片：取扣费后收益最高的那组
+  const best=[...t].sort((a,b)=>b.total_return-a.total_return)[0];
+  const set=(id,val,color)=>{const el=document.getElementById(id);if(el){el.textContent=val;if(color)el.style.color=color}};
+  set('mBestName',`${best.strategy_name} ${best.short}/${best.long}`);
+  set('mBestRet',mPct(best.total_return),mColorOf(best.total_return));
+  // 损耗永远是正数（越少越好），用中性色，避免误读成"亏了"
+  set('mBestDrag',best.fee_drag.toFixed(2)+'pt','#F59E0B');
+  set('mBestAnnual',mPct(best.annual_return),mColorOf(best.annual_return));
+  set('mBestSharpe',best.sharpe.toFixed(2),best.sharpe>0?M_COLOR.up:M_COLOR.down);
+
+  const tag=document.getElementById('mDetailTag');
+  if(tag)tag.textContent=`${r.stock_name} · ${r.period}m · ${r.bars} 根 / ${r.days} 天`;
+
+  // 明细表
+  const tb=document.getElementById('mDetailBody');
+  if(tb){
+    tb.innerHTML=[...t].sort((a,b)=>b.total_return-a.total_return).map(x=>{
+      const skipped=x.skipped_no_capital?`<span title="因资金不足放弃的买入信号数" style="color:#F59E0B">${x.skipped_no_capital}</span>`:'0';
+      return `<tr>
+        <td>${x.strategy_name}</td><td class="mono">${x.short}/${x.long}</td>
+        <td class="mono">${x.round_trips}${x.skipped_no_capital?' ⚠':''}</td>
+        <td>${mSpanPct(x.return_before_fee)}</td>
+        <td>${mSpanPct(x.total_return)}</td>
+        <td class="mono" style="color:#F59E0B">${x.fee_drag.toFixed(2)}</td>
+        <td>${mSpanPct(x.annual_return)}</td>
+        <td class="mono" style="color:var(--muted)">${x.max_drawdown.toFixed(1)}%</td>
+        <td class="mono" style="color:var(--muted)">${x.win_rate.toFixed(1)}%</td>
+        <td class="mono" style="color:${x.sharpe>0?M_COLOR.up:M_COLOR.down}">${x.sharpe.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 对比柱状图：扣费前 vs 扣费后，直观展示成本侵蚀
+  const c=ensure('mChartCompare');
+  if(c){
+    const sorted=[...t].sort((a,b)=>b.return_before_fee-a.return_before_fee);
+    const cats=sorted.map(x=>`${x.strategy_name} ${x.short}/${x.long}`);
+    c.setOption({
+      backgroundColor:'transparent',
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'},
+        formatter:ps=>{
+          const i=ps[0].dataIndex,x=sorted[i];
+          return `<b>${cats[i]}</b><br/>未扣费：${mPct(x.return_before_fee)}<br/>实际：${mPct(x.total_return)}<br/>损耗：${x.fee_drag.toFixed(2)}pt<br/>轮次：${x.round_trips}`;
+        }},
+      legend:{data:['未扣费','扣费后'],textStyle:{color:M_COLOR.dim},top:0,right:0,itemWidth:12,itemHeight:8},
+      grid:{left:0,right:0,top:28,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:cats,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},
+        axisLabel:{color:'#56585F',fontSize:10,interval:0,rotate:cats.length>3?18:0}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},
+        axisLabel:{color:'#56585F',fontSize:10,formatter:'{value}%'}},
+      series:[
+        {name:'未扣费',type:'bar',barGap:'10%',data:sorted.map(x=>x.return_before_fee),
+         itemStyle:{color:'rgba(139,143,152,.45)',borderRadius:[3,3,0,0]}},
+        {name:'扣费后',type:'bar',data:sorted.map(x=>({value:x.total_return,
+          itemStyle:{color:x.total_return>0?'rgba(239,68,68,.85)':'rgba(34,197,94,.85)',borderRadius:[3,3,0,0]}}))},
+      ]});
+  }
+
+  // 资金曲线：最佳策略
+  const ce=ensure('mChartEquity');
+  if(ce&&r.equity_curve&&r.equity_curve.length){
+    const init=r.init_capital||1000000;
+    const data=r.equity_curve.map(p=>+(((p.equity-init)/init)*100).toFixed(2));
+    const times=r.equity_curve.map(p=>p.time.slice(0,16));
+    const isUp=data[data.length-1]>=0;
+    ce.setOption({
+      backgroundColor:'transparent',
+      tooltip:{trigger:'axis',backgroundColor:'#0F0F11',borderColor:'rgba(255,255,255,.1)',textStyle:{color:'#EDEDEF'}},
+      grid:{left:0,right:6,top:12,bottom:0,containLabel:true},
+      xAxis:{type:'category',data:times,axisLine:{lineStyle:{color:'rgba(255,255,255,.08)'}},
+        axisLabel:{color:'#56585F',fontSize:10,hideOverlap:true}},
+      yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.05)'}},
+        axisLabel:{color:'#56585F',fontSize:10,formatter:'{value}%'}},
+      series:[{type:'line',data:data,smooth:true,symbol:'none',
+        lineStyle:{color:isUp?M_COLOR.up:M_COLOR.down,width:2},
+        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+          {offset:0,color:isUp?'rgba(239,68,68,.22)':'rgba(34,197,94,.22)'},
+          {offset:1,color:'transparent'}])}}]});
+  }
+}
+
+/* ---------- 多标的横评 ---------- */
+async function minuteRunMatrix(){
+  const btn=document.getElementById('runMatrix');
+  const sum=document.getElementById('mMatrixSummary');
+  const period=Number(document.getElementById('mPeriodSel')?.value||30);
+  const cap=Number(document.getElementById('mCapital')?.value||1000000);
+  const lot=Number(document.getElementById('mLotSel')?.value||100);
+  const limit=Number(document.getElementById('mMatrixLimit')?.value||30);
+
+  if(btn){btn.disabled=true;btn.textContent='横评中…'}
+  if(sum){sum.textContent=`正在遍历 ${limit} 只 × 5 策略，约需 ${Math.ceil(limit*1.6)} 秒…`;sum.style.color='var(--muted)'}
+
+  try{
+    const r=await callAPI('/minute/matrix',{period,init_capital:cap,lot_size:lot,limit});
+    if(!r.ok){if(sum){sum.textContent=r.msg||'横评失败';sum.style.color='#EF4444'}return}
+
+    if(sum){
+      const posN=r.positive_after,totalN=r.total_combos;
+      sum.innerHTML=`共 <b>${totalN}</b> 个组合 · 未扣费正收益 <b style="color:#F59E0B">${r.positive_before}</b> 个 `
+        +`· 扣费后正收益 <b style="color:${posN>0?M_COLOR.up:M_COLOR.down}">${posN}</b> 个 `
+        +`(${(posN/totalN*100).toFixed(1)}%) · 周期 ${r.period}m · 本金 ${mfmtNum(r.init_capital)} · 每手 ${r.lot_size} 股`;
+      sum.style.color='var(--muted)';
+    }
+
+    const sb=document.getElementById('mStockBoard');
+    if(sb){
+      sb.innerHTML=(r.stock_board||[]).map(x=>`<tr>
+        <td class="mono">${x.code} <span style="color:var(--muted)">${x.name}</span></td>
+        <td style="font-size:11.5px">${x.strategy_name} <span class="mono" style="color:var(--dim)">${x.params}</span></td>
+        <td class="mono">${x.round_trips}</td>
+        <td>${mSpanPct(x.return_before_fee)}</td>
+        <td>${mSpanPct(x.total_return)}</td>
+        <td class="mono" style="color:#F59E0B">${x.fee_drag.toFixed(1)}</td>
+      </tr>`).join('');
+    }
+    const stb=document.getElementById('mStratBoard');
+    if(stb){
+      stb.innerHTML=(r.strategy_board||[]).map(x=>`<tr>
+        <td style="font-size:11.5px">${x.key}</td>
+        <td class="mono">${x.samples}</td>
+        <td class="mono">${x.avg_round_trips}</td>
+        <td>${mSpanPct(x.avg_before)}</td>
+        <td>${mSpanPct(x.avg_return)}</td>
+        <td class="mono">${x.positive}/${x.samples}</td>
+      </tr>`).join('');
+    }
+  }catch(e){
+    if(sum){sum.textContent='横评失败：'+e.message;sum.style.color='#EF4444'}
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='跑横评（约 45 秒）'}
+  }
+}
+
+/* ---------- 事件绑定 ---------- */
+(function bindMinuteEvents(){
+  const periodSel=document.getElementById('mPeriodSel');
+  if(periodSel)periodSel.addEventListener('change',()=>{minuteLoadStocks()});
+  const run=document.getElementById('runMinuteBt');
+  if(run)run.addEventListener('click',minuteRunBacktest);
+  const matrix=document.getElementById('runMatrix');
+  if(matrix)matrix.addEventListener('click',minuteRunMatrix);
+  const qc=document.getElementById('mQuickCollect');
+  if(qc)qc.addEventListener('click',()=>{const c=document.getElementById('mStockSel')?.value;minuteCollect([c])});
+  const bc=document.getElementById('mBatchCollect');
+  if(bc)bc.addEventListener('click',()=>{
+    const period=document.getElementById('mPeriodSel')?.value||'30';
+    const codes=minuteState.stocks.filter(s=>s.periods[period]).slice(0,5).map(s=>s.code);
+    if(!codes.length){alert('暂无数据可采集');return}
+    minuteCollect(codes);
+  });
+})();
+
 
 /* --- 启动：拉取当前登录用户 --- */
 loadMe();

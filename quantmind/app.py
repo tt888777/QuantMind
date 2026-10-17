@@ -258,6 +258,237 @@ def api_stocks():
         s.close()
 
 
+# ---------------------------------------------------------------- 分钟级行情
+# 与日线彻底分开：日线走 quotation_daily（回测/指标/报告多处按 trade_date 读取），
+# 分钟走 quotation_minute（唯一键 code+period+trade_time）。混表会污染已有路径。
+
+@app.route('/api/minute/stocks')
+def api_minute_stocks():
+    """库内有分钟数据的标的清单，供前端下拉。"""
+    from modules.minute_fetch import minute_stats
+    rows = minute_stats()
+    names = _stock_name_map()
+    agg = {}
+    for r in rows:
+        a = agg.setdefault(r["stock_code"], {"code": r["stock_code"],
+                                             "name": names.get(r["stock_code"], r["stock_code"]),
+                                             "periods": {}})
+        a["periods"][r["period"]] = {
+            "rows": r["rows"],
+            "start": str(r["start"])[:19],
+            "end": str(r["end"])[:19],
+        }
+    out = sorted(agg.values(), key=lambda x: x["code"])
+    return jsonify({'ok': True, 'count': len(out), 'stocks': out})
+
+
+@app.route('/api/minute/quotation/<stock_code>')
+def api_minute_quotation(stock_code):
+    """分钟 K 线原始数据（前端画图用）。?period=30&limit=500"""
+    from modules.minute_fetch import load_minute, SUPPORTED_PERIODS
+    period = int(request.args.get('period', 30))
+    if period not in SUPPORTED_PERIODS:
+        return jsonify({'ok': False, 'msg': f'period 只支持 {SUPPORTED_PERIODS}'})
+    limit = request.args.get('limit')
+    df = load_minute(stock_code, period)
+    if df.empty:
+        return jsonify({'ok': False, 'msg': f'{stock_code} 无 {period} 分钟数据，请先采集'})
+    if limit:
+        df = df.tail(int(limit))
+    rows = [{'time': str(r['time'])[:19], 'open': r['open'], 'high': r['high'],
+             'low': r['low'], 'close': r['close'], 'volume': r['volume']}
+            for _, r in df.iterrows()]
+    return jsonify({'ok': True, 'count': len(rows), 'rows': rows})
+
+
+@app.route('/api/minute/collect', methods=['POST'])
+def api_minute_collect():
+    """采集分钟行情（同步执行，前端需提示耗时）。"""
+    from modules.minute_fetch import collect_and_save
+    d = request.json or {}
+    codes = d.get('codes') or []
+    if isinstance(codes, str):
+        codes = [c.strip() for c in codes.split(',') if c.strip()]
+    periods = d.get('periods') or [30]
+    if not codes:
+        return jsonify({'ok': False, 'msg': '请先选择标的'})
+    periods = [int(p) for p in periods]
+    if len(codes) * len(periods) > 60:
+        return jsonify({'ok': False, 'msg': '单次最多采集 60 个（标的×周期），请分批'})
+
+    results, total_added = [], 0
+    for p in periods:
+        for code in codes:
+            res = collect_and_save(code, p)
+            if res.get('ok'):
+                total_added += res['added']
+            results.append(res)
+    ok = sum(1 for r in results if r['ok'])
+    return jsonify({'ok': True, 'total': len(results), 'success': ok,
+                    'failed': len(results) - ok, 'added': total_added,
+                    'results': results,
+                    'msg': f'采集完成：成功 {ok}/{len(results)}，新增 {total_added} 行'})
+
+
+@app.route('/api/minute/logs')
+def api_minute_logs():
+    """最近采集日志，供前端展示数据来源与失败原因。"""
+    from modules.minute_fetch import recent_logs
+    limit = int(request.args.get('limit', 20))
+    return jsonify({'ok': True, 'logs': recent_logs(limit)})
+
+
+@app.route('/api/minute/backtest', methods=['POST'])
+def api_minute_backtest():
+    """单标的多策略分钟回测，返回对比表 + 最佳策略的权益曲线。"""
+    from modules.minute_backtest import compare_strategies, BARS_PER_DAY
+    d = request.json or {}
+    sc = str(d.get('stock_code', '600519')).split()[0]
+    period = int(d.get('period', 30))
+    cap = float(d.get('init_capital', 1000000))
+    # lot_size：100 = 真实一手；1 = 零股模拟（纯策略评估）
+    lot = int(d.get('lot_size', 100))
+    strat = d.get('strategy')  # 不传则跑默认组合
+
+    combos = None
+    if strat:
+        combos = [("dual_ma", 5, 20), ("boll", 5, 20), ("momentum", 5, 20),
+                  ("dual_ma", 10, 30), ("dual_ma", 3, 8)]
+        combos = [c for c in combos if c[0] == strat] or None
+
+    rows = compare_strategies(sc, period=period, combos=combos,
+                              init_capital=cap, lot_size=lot,
+                              start_time=d.get('start_time') or None,
+                              end_time=d.get('end_time') or None)
+    if not rows:
+        return jsonify({'ok': False, 'msg': '无回测结果：该标的在此周期无数据，请先采集'})
+
+    names = _stock_name_map()
+    table = [{k: r[k] for k in (
+        'strategy', 'strategy_name', 'short', 'long', 'bars', 'days', 'round_trips',
+        'trade_count', 'total_return', 'return_before_fee', 'fee_drag',
+        'annual_return', 'max_drawdown', 'win_rate', 'sharpe', 'fees_total',
+        'min_commission_hits', 'skipped_no_capital', 'avg_trades_per_day')} for r in rows]
+
+    best = max(rows, key=lambda r: r['total_return'])
+    return jsonify({
+        'ok': True,
+        'stock_code': sc,
+        'stock_name': names.get(sc, sc),
+        'period': period,
+        'init_capital': cap,
+        'lot_size': lot,
+        'bars_per_day': BARS_PER_DAY.get(period, 8),
+        'start_time': rows[0]['start_time'][:19],
+        'end_time': rows[0]['end_time'][:19],
+        'table': table,
+        'best': {k: best[k] for k in ('strategy_name', 'short', 'long',
+                                      'total_return', 'annual_return', 'sharpe')},
+        'equity_curve': [{'time': str(e['time'])[:19], 'equity': round(e['equity'], 2)}
+                         for e in best['equity_curve']],
+        'trades': best['trades'][-80:],
+        'msg': f"{best['strategy_name']} {best['short']}/{best['long']} 最佳："
+               f"实际{best['total_return']}% 年化{best['annual_return']}%",
+    })
+
+
+@app.route('/api/minute/matrix', methods=['POST'])
+def api_minute_matrix():
+    """多标的横评（标的 × 策略矩阵）。耗时较长，建议 limit 控制规模。"""
+    from modules.minute_backtest import run_minute_backtest
+    d = request.json or {}
+    period = int(d.get('period', 30))
+    cap = float(d.get('init_capital', 1000000))
+    lot = int(d.get('lot_size', 100))
+    combos = [("boll", 5, 20), ("dual_ma", 5, 20), ("dual_ma", 10, 30),
+              ("dual_ma", 3, 8), ("momentum", 5, 20)]
+    if d.get('combos'):
+        # 前端传 [[strategy, short, long], ...]
+        combos = [tuple(c) for c in d['combos']]
+
+    from modules.minute_fetch import minute_stats
+    codes = sorted({r["stock_code"] for r in minute_stats() if r["period"] == period})
+    if d.get('codes'):
+        want = set(d['codes'])
+        codes = [c for c in codes if c in want]
+    limit = int(d.get('limit', 0))
+    if limit:
+        codes = codes[:limit]
+    if not codes:
+        return jsonify({'ok': False, 'msg': '该周期无数据，请先采集'})
+    if len(codes) * len(combos) > 300:
+        return jsonify({'ok': False, 'msg': '组合过多（>300），请减少标的或策略'})
+
+    names = _stock_name_map()
+    rows = []
+    for code in codes:
+        for strat, s_, l_ in combos:
+            r = run_minute_backtest(code, period=period, strategy=strat,
+                                    short=s_, long_=l_, init_capital=cap, lot_size=lot)
+            if not r:
+                continue
+            rows.append({
+                'code': code, 'name': names.get(code, code),
+                'strategy': strat, 'strategy_name': r['strategy_name'],
+                'params': f'{s_}/{l_}', 'round_trips': r['round_trips'],
+                'total_return': r['total_return'],
+                'return_before_fee': r['return_before_fee'],
+                'fee_drag': r['fee_drag'], 'annual_return': r['annual_return'],
+                'max_drawdown': r['max_drawdown'], 'sharpe': r['sharpe'],
+            })
+
+    # 每只标的的最佳策略（按扣费后收益）
+    best = {}
+    for r in rows:
+        if r['code'] not in best or r['total_return'] > best[r['code']]['total_return']:
+            best[r['code']] = r
+    stock_board = sorted(best.values(), key=lambda x: x['total_return'], reverse=True)
+
+    # 每个策略的平均表现
+    agg = {}
+    for r in rows:
+        k = f"{r['strategy']} {r['params']}"
+        a = agg.setdefault(k, {'n': 0, 'ret': 0.0, 'before': 0.0, 'drag': 0.0,
+                               'rt': 0.0, 'pos': 0})
+        a['n'] += 1
+        a['ret'] += r['total_return']
+        a['before'] += r['return_before_fee']
+        a['drag'] += r['fee_drag']
+        a['rt'] += r['round_trips']
+        a['pos'] += 1 if r['total_return'] > 0 else 0
+    strategy_board = [{'key': k, 'samples': v['n'],
+                       'avg_round_trips': round(v['rt'] / v['n'], 1),
+                       'avg_before': round(v['before'] / v['n'], 2),
+                       'avg_return': round(v['ret'] / v['n'], 2),
+                       'avg_drag': round(v['drag'] / v['n'], 2),
+                       'positive': v['pos']}
+                      for k, v in sorted(agg.items(), key=lambda kv: -kv[1]['ret'] / kv[1]['n'])]
+
+    return jsonify({
+        'ok': True, 'period': period, 'init_capital': cap, 'lot_size': lot,
+        'total_combos': len(rows),
+        'positive_before': sum(1 for r in rows if r['return_before_fee'] > 0),
+        'positive_after': sum(1 for r in rows if r['total_return'] > 0),
+        'stock_board': stock_board,
+        'strategy_board': strategy_board,
+        'msg': f'{len(rows)} 个组合，扣费后正收益 '
+               f'{sum(1 for r in rows if r["total_return"] > 0)}/{len(rows)}',
+    })
+
+
+def _stock_name_map():
+    """代码 → 名称。取不到就退回代码本身。"""
+    try:
+        s = get_session()
+        try:
+            return {r.stock_code: (r.stock_name or r.stock_code)
+                    for r in s.query(StockBasic).all()}
+        finally:
+            s.close()
+    except Exception:                                          # noqa: BLE001
+        return {}
+
+
 @app.route('/api/pipeline', methods=['POST'])
 def api_pipeline():
     d = request.json or {}

@@ -219,11 +219,15 @@ def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
     bt = bt or {}
     tstats = _trade_stats(bt, rows)
 
-    # 舆情事件分布：'其他' 占比高 => 事件识别粒度粗，情绪过滤的实际约束力被高估
+    # 舆情事件分布
+    # other_ratio 高 = 事件识别粒度粗（规则表覆盖不到的标题都掉进"其他"垃圾桶）；
+    # coverage_pct = 1 - other_ratio，即"被明确归类的事件占比"，比 other_ratio 更直观。
     events = sent.get("events") or []
     ev_total = sum(int(e.get("count") or 0) for e in events) or 0
     other = next((int(e.get("count") or 0) for e in events if e.get("name") == "其他"), 0)
     other_ratio = round(other / ev_total * 100, 1) if ev_total else None
+    coverage_pct = round(100 - other_ratio, 1) if other_ratio is not None else None
+    event_kinds = len([e for e in events if e.get("name") != "其他" and int(e.get("count") or 0) > 0])
     top_events = [
         {"name": e.get("name"), "type": e.get("type"), "count": e.get("count")}
         for e in sorted(events, key=lambda x: -(x.get("count") or 0))[:5]
@@ -249,6 +253,9 @@ def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
         "sharpe": bt.get("sharpe"),
         "trade_count": bt.get("trade_count"),
         "sentiment_filtered": bt.get("sentiment_filtered"),
+        "sentiment_active": bt.get("sentiment_active"),
+        "sentiment_blocked": bt.get("sentiment_blocked"),
+        "buy_signals": bt.get("buy_signals"),
         "profit_loss_ratio": tstats["profit_loss_ratio"],
         "max_consec_loss": tstats["max_consec_loss"],
         "avg_hold_days": tstats["avg_hold_days"],
@@ -262,6 +269,8 @@ def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
         "neu_pct": sent.get("neu_pct"),
         "sent_sample": len(results),
         "other_ratio": other_ratio,
+        "coverage_pct": coverage_pct,
+        "event_kinds": event_kinds,
         "top_events": top_events,
         "rows_below_250": rows < 250,
     }
@@ -337,11 +346,21 @@ def template_risks(data: dict, tpl: dict) -> list[str]:
         results = sent.get("results") or []
         if len(results) < 5:
             out.append(f"舆情样本仅 {len(results)} 条，情绪研判可靠性有限。")
-        other_ratio = m.get("other_ratio")
-        if other_ratio is not None and other_ratio >= 70:
+        cov = m.get("coverage_pct")
+        if cov is not None and cov < 60:
             out.append(
-                f"舆情事件中「其他」类占比达 {other_ratio}%，事件识别粒度偏粗，"
-                "情绪过滤对实际交易的约束力可能被高估。")
+                f"舆情事件识别覆盖率仅 {cov}%（{m.get('other_ratio')}% 的新闻无法归类到具体事件），"
+                "事件粒度偏粗，舆情信号对交易的约束力可能被高估。")
+        # 舆情是否真的参与交易、拦下过信号 —— 这点必须写清楚，否则容易被误读
+        if m.get("sentiment_active") is False:
+            out.append("本次回测未启用舆情约束，情绪指标仅作展示，未参与买卖决策。")
+        elif m.get("sentiment_active"):
+            bs = m.get("buy_signals") or 0
+            blk = m.get("sentiment_blocked") or 0
+            if bs and blk == 0:
+                out.append(
+                    f"舆情约束虽已启用，但 {bs} 次金叉买入信号全部通过、未被拦截，"
+                    "说明该阈值在本区间内没有实际起到过滤作用。")
     out.append("舆情研判由 AI/关键词模型生成，无法保证信息完整性与判断准确性，仅供参考。")
     out.append("双均线策略为趋势跟踪型，在震荡行情中可能频繁产生虚假信号导致亏损。")
     for extra in (tpl.get("risk_items") or []):

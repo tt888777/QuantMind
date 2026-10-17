@@ -60,6 +60,8 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
     trades = []
     equity_curve = []
     entry_price = 0.0
+    blocked_by_sentiment = 0        # 被舆情拦下的买入信号数
+    total_buy_signals = 0           # 金叉信号总数
 
     for i in range(1, len(df)):
         row = df.iloc[i]
@@ -77,8 +79,9 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
             signal = -1
 
         if signal == 1 and position == 0:
+            total_buy_signals += 1
             if sent_index is not None and sent_index < sentiment_threshold:
-                pass
+                blocked_by_sentiment += 1
             else:
                 buy_price = price * (1 + slippage)
                 shares = int(cash / buy_price / lot_size) * lot_size
@@ -159,5 +162,10 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         "trades": trades,
         "equity_curve": equity_curve,
         "sentiment_index": sent_index,
+        # 注意：这不是"舆情参与评分"的意思。它表示「回测期间金叉买入信号是否被
+        # 舆情阈值拦下过」。sentiment_threshold=None 时舆情不参与，两个计数都为 0。
         "sentiment_filtered": sent_index is not None and sent_index < sentiment_threshold,
+        "sentiment_active": sent_index is not None,
+        "sentiment_blocked": blocked_by_sentiment,
+        "buy_signals": total_buy_signals,
     }

@@ -306,8 +306,8 @@ _SYSTEM_PROMPT = """你是量化策略分析师。根据给定的 JSON 事实，
    - 收益为正但夏普很低（风险调整后收益差）
    - 胜率低但盈亏比高（收益依赖少数大赚，稳定性差）
    - 持仓时间占比低却收益尚可（收益依赖少数交易，样本脆弱）
-   - 舆情情绪偏弱但策略维持高仓位（缺少动态仓位约束）
-   - 舆情"其他"类占比高（事件识别粒度粗，过滤的真实约束力被高估）
+   - 舆情约束已启用但 sentiment_blocked 为 0（阈值形同虚设，从未拦住信号）
+   - 舆情事件识别覆盖率低 / "其他"类占比高（事件粒度粗，过滤的真实约束力被高估）
 5. 不要写"投资有风险，入市需谨慎"这类空话套话。
 6. 不得给出买卖建议、不得承诺收益、不得推荐个股。
 7. 不要输出英文、true/false、None 之类的原始值；指标为“否”时用中文说明（如"未启用舆情过滤"）。
@@ -331,6 +331,23 @@ _SYSTEM_PROMPT_ARRAY = """你是量化策略风险分析师。根据给定的 JS
 """
 
 
+# 字段含义说明 —— 必须给。否则模型看到 sentiment_active="是"、sentiment_blocked=0
+# 这类孤立事实，会自己臆测出"舆情过滤未启用"这种与事实相反的结论（实测踩过）。
+_FIELD_NOTES = """
+字段含义（务必按此理解，不要臆测）：
+- sentiment_active：回测是否真的把舆情纳入买卖决策。"是"=已启用，"否"=仅展示不参与。
+- buy_signals：区间内出现的金叉买入信号总数（注意：这是信号数，不是成交笔数 trade_count）。
+- sentiment_blocked：其中被舆情阈值拦下、因而没有买入的信号数。
+- sentiment_active="是" 时：若 buy_signals>0 且 sentiment_blocked=0，说明**舆情已启用但一次都没拦住**，
+  该阈值在本区间内没有实际过滤作用 —— 这是"阈值形同虚设"，**不是**"舆情未启用"。
+  若 sentiment_blocked>0，说明舆情确实参与了决策并拦下过信号。
+- coverage_pct：舆情事件被明确归类的比例，越低说明事件识别越粗。
+- other_ratio：落入"其他"类的新闻占比，是 coverage_pct 的反面。
+- event_kinds：识别出的具体事件类别数。
+- rows_below_250：数据是否不足 250 交易日（"是"表示样本偏短）。
+"""
+
+
 def _build_user_prompt(data: dict) -> str:
     metrics = dict(data.get("metrics") or {})
     # 只把非空字段给模型，减少噪声；布尔值转成"是/否"，避免模型把 true 当数字引用
@@ -345,7 +362,8 @@ def _build_user_prompt(data: dict) -> str:
     }
     return ("请基于以下事实写一段策略分析（summary）和 3~4 条风险提示（risks）。"
             "数字只能以 {字段名} 形式引用，字段名必须来自 metrics：\n"
-            + json.dumps(payload, ensure_ascii=False, indent=2))
+            + json.dumps(payload, ensure_ascii=False, indent=2)
+            + _FIELD_NOTES)
 
 
 # ---------------------------------------------------------------- 调用

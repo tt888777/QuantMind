@@ -888,6 +888,9 @@ def api_export_report():
 
     真实产出：format=html 写 .html；format=pdf 用 Chrome/Edge 打印成**真 PDF**
     （找不到任何 PDF 引擎时明确报错，绝不把 HTML 内容塞进 .pdf）。
+
+    ``period``：不传或 "daily" = 日线报告；传 5 / 30 = 分钟级回测报告
+    （行情概览仍用日线，回测章节换成分钟级多策略对比，并附逐笔明细）。
     """
     d = request.json or {}
     sc = d.get('stock_code', '600519')
@@ -895,6 +898,39 @@ def api_export_report():
     if fmt not in ('html', 'pdf'):
         return jsonify({'ok': False, 'code': 'BAD_FORMAT',
                         'msg': f'不支持的格式：{fmt}（仅支持 html / pdf）'}), 400
+
+    period = d.get('period', 'daily')
+    minute_res = None
+    minute_kw = {}
+    if period in (5, 30, '5', '30'):
+        period = int(period)
+        from modules.minute_backtest import compare_strategies, run_minute_backtest
+        cap_m = float(d.get('init_capital', 1000000))
+        rows_m = compare_strategies(sc, period=period, init_capital=cap_m,
+                                    lot_size=int(d.get('lot_size', 100)))
+        if not rows_m:
+            return jsonify({'ok': False, 'code': 'NO_DATA',
+                            'msg': f'{sc} 无 {period} 分钟数据，请先在回测页采集'}), 400
+        best = max(rows_m, key=lambda r: r['total_return'])
+        minute_res = {
+            "period": period,
+            "lot_size": int(d.get('lot_size', 100)),
+            "table": [{k: r[k] for k in (
+                'strategy', 'strategy_name', 'short', 'long', 'round_trips',
+                'total_return', 'return_before_fee', 'fee_drag',
+                'annual_return', 'max_drawdown', 'win_rate', 'sharpe')}
+                for r in rows_m],
+            "best": {k: best[k] for k in (
+                'strategy_name', 'short', 'long', 'round_trips',
+                'total_return', 'return_before_fee', 'fee_drag',
+                'annual_return', 'max_drawdown', 'sharpe')},
+        }
+        # 主回测对象 = 最佳分钟策略，报告的 KPI / 逐笔明细都来自它
+        bt_full = run_minute_backtest(sc, period=period, strategy=best['strategy'],
+                                      short=best['short'], long_=best['long'],
+                                      init_capital=cap_m,
+                                      lot_size=int(d.get('lot_size', 100)))
+        minute_kw = {"bt": bt_full, "period": period}
 
     df = load_quotation(sc)
     if df.empty:
@@ -909,8 +945,14 @@ def api_export_report():
     if df.empty:
         return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': '指定区间内无数据'}), 400
 
-    bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
-                      start_date=sd or None, end_date=ed or None)
+    if minute_kw:
+        bt = minute_kw["bt"]
+        if bt:
+            bt = dict(bt)
+            bt.setdefault("strategy_name", minute_res["best"]["strategy_name"])
+    else:
+        bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
+                          start_date=sd or None, end_date=ed or None)
     try:
         sent_info = collect_sentiment(sc)
         sent = analyze_sentiments(sc, sent_info['news'],
@@ -920,7 +962,8 @@ def api_export_report():
         sent = None
 
     try:
-        r = report_mod.build_and_save(sc, df, bt, sent, fmt=fmt, start=sd, end=ed)
+        r = report_mod.build_and_save(sc, df, bt, sent, fmt=fmt, start=sd, end=ed,
+                                      minute=minute_res)
     except report_mod.PdfUnavailable as e:
         return jsonify({'ok': False, 'code': 'PDF_UNAVAILABLE',
                         'msg': 'PDF 引擎不可用，请改用 HTML 导出',
@@ -1092,7 +1135,11 @@ def api_report_template():
 
 @app.route('/api/report_preview', methods=['POST'])
 def api_report_preview():
-    """生成报告 HTML 片段（不落盘），供报告中心右侧实时预览模板效果。"""
+    """生成报告 HTML 片段（不落盘），供报告中心右侧实时预览模板效果。
+
+    ``period`` 语义与 /api/export_report 一致：daily（默认）或 5 / 30。
+    分钟预览要跑 5 组回测（约 5 秒），只在明确传了分钟周期时才执行。
+    """
     d = request.json or {}
     sc = d.get('stock_code', '600519')
     df = load_quotation(sc)
@@ -1100,15 +1147,47 @@ def api_report_preview():
         return jsonify({'ok': False, 'code': 'NO_DATA', 'msg': f'{sc} 无行情数据'}), 400
     sd = d.get('start_date', '') or ''
     ed = d.get('end_date', '') or ''
-    bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
-                      start_date=sd or None, end_date=ed or None)
+
+    period = d.get('period', 'daily')
+    minute_res, bt = None, None
+    if period in (5, 30, '5', '30'):
+        period = int(period)
+        from modules.minute_backtest import compare_strategies, run_minute_backtest
+        cap_m = float(d.get('init_capital', 1000000))
+        rows_m = compare_strategies(sc, period=period, init_capital=cap_m,
+                                    lot_size=int(d.get('lot_size', 100)))
+        if rows_m:
+            best = max(rows_m, key=lambda r: r['total_return'])
+            minute_res = {
+                "period": period, "lot_size": int(d.get('lot_size', 100)),
+                "table": [{k: r[k] for k in (
+                    'strategy', 'strategy_name', 'short', 'long', 'round_trips',
+                    'total_return', 'return_before_fee', 'fee_drag',
+                    'annual_return', 'max_drawdown', 'win_rate', 'sharpe')}
+                    for r in rows_m],
+                "best": {k: best[k] for k in (
+                    'strategy_name', 'short', 'long', 'round_trips',
+                    'total_return', 'return_before_fee', 'fee_drag',
+                    'annual_return', 'max_drawdown', 'sharpe')},
+            }
+            bt = run_minute_backtest(sc, period=period, strategy=best['strategy'],
+                                     short=best['short'], long_=best['long'],
+                                     init_capital=cap_m,
+                                     lot_size=int(d.get('lot_size', 100)))
+        else:
+            return jsonify({'ok': False, 'code': 'NO_DATA',
+                            'msg': f'{sc} 无 {period} 分钟数据，请先采集'}), 400
+    else:
+        bt = run_backtest(sc, short=5, long_=20, init_capital=100000,
+                          start_date=sd or None, end_date=ed or None)
+
     try:
         sent_info = collect_sentiment(sc)
         sent = analyze_sentiments(sc, sent_info['news'], engine=d.get('engine', 'keyword'))
     except Exception:
         sent = None
     tpl = d.get('template') if isinstance(d.get('template'), dict) else None
-    data = report_mod.build_report_data(sc, df, bt, sent, sd, ed)
+    data = report_mod.build_report_data(sc, df, bt, sent, sd, ed, minute=minute_res)
     html = report_mod.render_html(data, tpl or report_mod.load_template())
     return jsonify({'ok': True, 'html': html, 'summary': {
         'rows': data['rows'], 'start': data['start'], 'end': data['end'],

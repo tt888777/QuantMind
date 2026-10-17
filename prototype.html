@@ -379,11 +379,7 @@ body{
     <div class="nav-item" data-view="backtest">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
       量化回测
-    </div>
-    <div class="nav-item" data-view="minute">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path stroke-linecap="round" d="M12 7.5V12l3 2"/></svg>
-      分钟级回测
-      <span class="nav-badge">5m/30m</span>
+      <span class="nav-badge">日线+分钟</span>
     </div>
     <div class="nav-group">编排</div>
     <div class="nav-item" data-view="pipeline">
@@ -741,7 +737,23 @@ body{
       <!-- ===== BACKTEST ===== -->
       <section class="view" id="view-backtest">
         <div class="page-title">量化回测</div>
-        <div class="page-desc">简易回测框架 · 双均线/动量策略模板 · 收益率/最大回撤/胜率/夏普绩效评估（US-009 / US-010）</div>
+        <div class="page-desc">双均线/动量/布林带策略模板 · 日线与分钟级（5m/30m）统一回测 · 收益率/最大回撤/胜率/夏普绩效评估 · 真实成本模型</div>
+
+        <!-- 周期切换：日线 / 分钟级 -->
+        <div class="row" style="gap:8px;margin-bottom:14px" id="btModeTabs">
+          <button class="btn btn-sm bt-mode active" data-mode="daily" style="justify-content:center">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14"><path stroke-linecap="round" d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
+            日线回测
+          </button>
+          <button class="btn btn-sm bt-mode btn-ghost" data-mode="minute" style="justify-content:center">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8.5"/><path stroke-linecap="round" d="M12 7.5V12l3 2"/></svg>
+            分钟级回测（30m / 5m）
+          </button>
+          <span style="flex:1"></span>
+          <span id="btModeHint" style="font-size:11.5px;color:var(--dim);align-self:center">日线：MA 交叉 + 情绪过滤 · 简化成本口径</span>
+        </div>
+
+        <div id="btDailyPane">
 
         <div class="grid" style="grid-template-columns:.8fr 1.2fr">
           <div>
@@ -818,14 +830,10 @@ body{
             </div>
           </div>
         </div>
-      </section>
+        </div><!-- /btDailyPane -->
 
-      <!-- ===== MINUTE BACKTEST ===== -->
-      <section class="view" id="view-minute">
-        <div class="page-title">分钟级回测</div>
-        <div class="page-desc">5 分钟 / 30 分钟 K 线 · 真实 A 股成本模型（佣金万三最低 5 元 / 印花税千一卖出 / 过户费双向 / 滑点万二）· 成本侵蚀拆解</div>
-
-        <!-- 数据概览 -->
+        <div id="btMinutePane" style="display:none">
+        <!-- 分钟级回测：与日线共用本视图，通过顶部周期 Tab 切换 -->
         <div class="bento" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
           <div class="card card-glow" style="padding:16px">
             <div class="stat-label">30 分钟覆盖</div>
@@ -977,6 +985,7 @@ body{
             </div>
           </div>
         </div>
+        </div><!-- /btMinutePane -->
       </section>
 
       <!-- ===== PIPELINE ===== -->
@@ -1068,6 +1077,17 @@ body{
       <section class="view" id="view-report">
         <div class="page-title">报告中心</div>
         <div class="page-desc">整合行情/策略/舆情生成结构化分析报告 · 附风险提示与数据时间范围声明（US-011）</div>
+
+        <div class="row" style="gap:10px;margin-bottom:14px;align-items:center">
+          <span style="font-size:12px;color:var(--muted)">报告周期</span>
+          <select class="select" id="reportPeriodSel" style="width:190px;font-size:12px;padding:5px 10px">
+            <option value="">跟随回测页模式</option>
+            <option value="daily">日线</option>
+            <option value="30">30 分钟</option>
+            <option value="5">5 分钟</option>
+          </select>
+          <span id="reportPeriodHint" style="font-size:11.5px;color:var(--dim)">当前：日线（分钟级报告含多策略成本对比 + 逐笔明细）</span>
+        </div>
 
         <div class="grid" style="grid-template-columns:1.3fr .7fr">
           <div class="card">
@@ -1376,7 +1396,7 @@ const MODEL_NAME='DAPT + 财经新闻 LoRA';
 const navItems=document.querySelectorAll('.nav-item');
 const views=document.querySelectorAll('.view');
 const crumb=document.getElementById('crumbCurrent');
-const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',minute:'分钟级回测',pipeline:'分析流水线',report:'报告中心',profile:'个人中心'};
+const titles={dashboard:'概览',import:'数据导入',process:'数据处理',viz:'行情可视化',sentiment:'舆情决策',backtest:'量化回测',pipeline:'分析流水线',report:'报告中心',profile:'个人中心'};
 navItems.forEach(it=>it.addEventListener('click',()=>{
   navItems.forEach(i=>i.classList.remove('active'));
   it.classList.add('active');
@@ -1482,8 +1502,30 @@ function initChartsFor(v){
   if(v==='dashboard'){chartDashPerf();chartDashSent()}
   if(v==='sentiment'){chartSentIndex()}
   if(v==='viz'){loadRealKline();chartReturns()}
-  if(v==='minute'){minuteInit()}
+  if(v==='backtest'&&btMode==='minute'){minuteInit()}
   Object.values(charts).forEach(c=>c&&c.resize());
+}
+
+/* ============ 回测页模式切换（日线 / 分钟级） ============ */
+/* 两种周期共用一个视图：配置面板、结果面板、成本口径都不同，按 Tab 切换 */
+let btMode='daily';
+(function bindBtMode(){
+  const tabs=document.querySelectorAll('#btModeTabs .bt-mode');
+  const hint={daily:'日线：MA 交叉 + 情绪过滤 · 简化成本口径',
+              minute:'分钟：真实 A 股成本（最低 5 元佣金/印花税/过户费）· 成本侵蚀拆解'};
+  tabs.forEach(b=>b.addEventListener('click',()=>{
+    btMode=b.dataset.mode;
+    tabs.forEach(x=>{x.classList.toggle('active',x===b);x.classList.toggle('btn-ghost',x!==b)});
+    document.getElementById('btDailyPane').style.display=btMode==='daily'?'':'none';
+    document.getElementById('btMinutePane').style.display=btMode==='minute'?'':'none';
+    const h=document.getElementById('btModeHint');if(h)h.textContent=hint[btMode];
+    if(btMode==='minute')minuteInit();
+    Object.values(charts).forEach(c=>c&&c.resize());
+  }));
+})();
+function btSwitchMode(m){
+  const b=document.querySelector(`#btModeTabs .bt-mode[data-mode="${m}"]`);
+  if(b)b.click();
 }
 
 /* indicator table - loaded via loadIndicatorTable() on page navigation */
@@ -2220,7 +2262,8 @@ async function generateReportPreview(silent){
     const r=await callAPI('/report_preview',{
       stock_code:currentStock,
       start_date:btParams.start_date,
-      end_date:btParams.end_date
+      end_date:btParams.end_date,
+      period:reportPeriod()||undefined
     });
     const hint=document.getElementById('reportPreviewHint');
     if(r&&r.ok){
@@ -2240,6 +2283,26 @@ async function generateReportPreview(silent){
   }
 }
 
+/* 报告周期：日线 / 分钟级。与回测页的模式联动 —— 在回测页切到分钟模式，
+   报告中心自动跟着生成分钟级报告；也可以在报告中心手动改。 */
+let _reportPeriodOverride='';
+function reportPeriod(){
+  if(_reportPeriodOverride)return _reportPeriodOverride;
+  return btMode==='minute'?(document.getElementById('mPeriodSel')?.value||'30'):'daily';
+}
+(function bindReportPeriod(){
+  const sel=document.getElementById('reportPeriodSel');
+  const hint=document.getElementById('reportPeriodHint');
+  if(!sel)return;
+  sel.addEventListener('change',()=>{
+    _reportPeriodOverride=sel.value;
+    if(hint)hint.textContent=sel.value===''
+      ?'跟随回测页模式（分钟级报告含多策略成本对比 + 逐笔明细）'
+      :(sel.value==='daily'?'当前：日线':'当前：'+sel.value+' 分钟（生成约需 5 秒）');
+    generateReportPreview();
+  });
+})();
+
 /* 真正导出：format 决定文件类型，后端分别产出 .html / 真实 .pdf */
 async function doExportReport(fmt,btn,label){
   if(btn){btn.disabled=true;btn.textContent='生成中...'}
@@ -2248,7 +2311,10 @@ async function doExportReport(fmt,btn,label){
       stock_code:currentStock,
       format:fmt,
       start_date:btParams.start_date,
-      end_date:btParams.end_date
+      end_date:btParams.end_date,
+      period:reportPeriod()||undefined,
+      init_capital:reportPeriod()!=='daily'?Number(document.getElementById('mCapital')?.value||1000000):undefined,
+      lot_size:reportPeriod()!=='daily'?Number(document.getElementById('mLotSel')?.value||100):undefined
     });
     if(r&&r.ok){
       logActivity('报告中心',`导出${fmt.toUpperCase()}报告 ${currentStock}：${r.filename}`,'ok');
@@ -2894,7 +2960,7 @@ navItems.forEach(it=>it.addEventListener('click',()=>{
 
   if(v==='process')setTimeout(loadIndicatorTable,100);
   if(v==='viz')setTimeout(loadRealKline,100);
-  if(v==='backtest'){const bi=document.getElementById('btStockInput');if(bi)bi.value=currentStock;if(btParams.start_date){const sd=document.getElementById('btStartDate');if(sd)sd.value=btParams.start_date;}if(btParams.end_date){const ed=document.getElementById('btEndDate');if(ed)ed.value=btParams.end_date;}}
+  if(v==='backtest'){const bi=document.getElementById('btStockInput');if(bi)bi.value=currentStock;if(btParams.start_date){const sd=document.getElementById('btStartDate');if(sd)sd.value=btParams.start_date;}if(btParams.end_date){const ed=document.getElementById('btEndDate');if(ed)ed.value=btParams.end_date;}if(btMode==='minute')minuteInit();}
   if(v==='report'){loadReportHistory();generateReportPreview()}
   if(v==='profile')setTimeout(loadLogs,60);
 }));
@@ -3209,7 +3275,9 @@ loadMe();
 
 /* --- 支持 /#profile 这类锚点直接打开某个视图（方便分享链接） --- */
 (function(){
-  const h=(location.hash||'').replace(/^#\/?/,'');
+  let h=(location.hash||'').replace(/^#\/?/,'');
+  /* #minute 兼容旧链接：打开回测页并切到分钟模式 */
+  if(h==='minute'){h='backtest';setTimeout(()=>btSwitchMode('minute'),80)}
   if(h&&titles[h]){const it=document.querySelector(`.nav-item[data-view="${h}"]`);if(it)it.click()}
 })();
 

@@ -166,8 +166,9 @@ def _trade_stats(bt: dict, rows: int) -> dict:
         ret = (sell["price"] - buy["price"]) / buy["price"] * 100 if buy.get("price") else 0
         (wins if ret > 0 else losses).append(ret)
         try:
-            d1 = pd.to_datetime(buy["date"])
-            d2 = pd.to_datetime(sell["date"])
+            # 日线交易记 date，分钟线记 time —— 两者都支持
+            d1 = pd.to_datetime(buy.get("date") or buy.get("time"))
+            d2 = pd.to_datetime(sell.get("date") or sell.get("time"))
             hold_days.append(max((d2 - d1).days, 0))
         except Exception:
             pass
@@ -197,11 +198,17 @@ def _trade_stats(bt: dict, rows: int) -> dict:
 
 
 def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
-                      sent: dict | None, start: str = "", end: str = "") -> dict:
+                      sent: dict | None, start: str = "", end: str = "",
+                      minute: dict | None = None) -> dict:
     """把各模块结果收拢成渲染所需的扁平结构。
 
     除渲染字段外，额外提供 ``metrics``（派生指标），
     模板版与大模型版风险提示共用同一份事实。
+
+    ``minute`` 是分钟级回测结果（可选）：
+        {"period": 30, "table": [策略对比行], "best": 最佳策略行, "lot_size": 100}
+    由 ``modules.minute_backtest.compare_strategies`` 的结果整理而来，
+    传入后报告会追加「分钟级回测」章节。
     """
     first = str(df.iloc[0]["date"]) if not df.empty else "-"
     last = str(df.iloc[-1]["date"]) if not df.empty else "-"
@@ -288,6 +295,7 @@ def build_report_data(stock_code: str, df: pd.DataFrame, bt: dict | None,
         "close_last": close_last,
         "change_pct": change,
         "backtest": bt,
+        "minute": minute or None,
         "sentiment": sent,
         "sentiment_index": idx,
         "sentiment_label": sent_label,
@@ -616,6 +624,63 @@ ul.risk li {{ margin-bottom:5px; }}
             blocks.append(f'<p class="src-note">{_esc(note)}</p>')
         parts.append('<h2>⑤ 策略分析与风险提示</h2>' + "".join(blocks))
 
+    # ---- 分钟级回测章节（传入了分钟结果时才出现）----
+    minute = data.get("minute")
+    if minute:
+        mtable = minute.get("table") or []
+        mperiod = minute.get("period", 30)
+        mbest = minute.get("best") or {}
+        if mtable:
+            rows = "".join(
+                f"<tr><td>{m.get('strategy_name', '')} {m.get('short', '')}/{m.get('long', '')}</td>"
+                f"<td class=\"num\">{m.get('round_trips', 0)}</td>"
+                f"<td class=\"num\" style=\"{tone(m.get('return_before_fee'))}\">{_fmt(m.get('return_before_fee'), '%')}</td>"
+                f"<td class=\"num\" style=\"{tone(m.get('total_return'))}\">{_fmt(m.get('total_return'), '%')}</td>"
+                f"<td class=\"num\">{_fmt(m.get('fee_drag'))} pt</td>"
+                f"<td class=\"num\" style=\"{tone(m.get('annual_return'))}\">{_fmt(m.get('annual_return'), '%')}</td>"
+                f"<td class=\"num\" style=\"color:{down}\">{_fmt(m.get('max_drawdown'), '%')}</td>"
+                f"<td class=\"num\">{_fmt(m.get('sharpe'))}</td></tr>"
+                for m in sorted(mtable, key=lambda x: -(x.get("total_return") or 0)))
+            parts.append(f"""<h2>⑥ 分钟级回测（{mperiod} 分钟线）</h2>
+<p>分钟级使用<b>真实 A 股成本模型</b>（佣金万三、单笔最低 5 元、印花税千一仅卖出、
+过户费双向、滑点万二），与日线的简化成本口径不同。
+「损耗」= 未扣费收益 − 实际收益，即被交易成本吃掉的百分点。
+年化按 bar 频率换算（{mperiod} 分钟线每天 {8 if mperiod == 30 else 48} 根），
+每手 {minute.get('lot_size', 100)} 股。</p>
+<table><tr><th>策略</th><th>轮次</th><th>未扣费</th><th>实际</th><th>损耗</th><th>年化</th><th>回撤</th><th>夏普</th></tr>
+{rows}</table>
+<p>最佳组合：<b>{mbest.get('strategy_name', '—')} {mbest.get('short', '')}/{mbest.get('long', '')}</b>，
+实际收益 {_fmt(mbest.get('total_return'), '%')}、年化 {_fmt(mbest.get('annual_return'), '%')}、
+夏普 {_fmt(mbest.get('sharpe'))}。数据显示成本损耗随交易轮次近似线性放大，
+<b>分钟级别降低换手率比优化信号参数更重要</b>。</p>""")
+
+    # ---- 逐笔交易明细（回测执行过就有，放在报告底部）----
+    trades = (bt or {}).get("trades") or []
+    if trades:
+        # 分钟线交易的时间字段叫 time，日线叫 date —— 统一按「时间」列输出
+        def _t(t):
+            return str(t.get("date") or t.get("time") or "")[:16]
+        show = trades[-40:]                      # 只展示最近 40 笔，避免报告过长
+        skipped = len(trades) - len(show)
+
+        def _fee(t):
+            # 日线回测的旧口径没有单笔费用字段，如实显示「—」而不是伪造 0
+            return _fmt(t.get("fee"), " 元") if t.get("fee") is not None else "—"
+        rows = "".join(
+            f"<tr><td class=\"num\">{i + 1 + skipped}</td>"
+            f"<td>{_t(t)}</td>"
+            f"<td style=\"color:{up if t.get('dir') == 'BUY' else down}\">"
+            f"{'买入' if t.get('dir') == 'BUY' else '卖出'}</td>"
+            f"<td class=\"num\">{_fmt(t.get('price'))}</td>"
+            f"<td class=\"num\">{_fmt(t.get('shares'), '', 0)}</td>"
+            f"<td class=\"num\">{_fee(t)}</td></tr>"
+            for i, t in enumerate(show))
+        note = f"（仅展示最近 40 笔，完整 {len(trades)} 笔见系统导出）" if skipped else ""
+        parts.append(f"""<h2>{'⑦' if minute else '⑥'} 逐笔交易明细</h2>
+<p>回测共产生 <b>{len(trades)}</b> 笔交易{note}。价格为含滑点的成交价，费用含佣金/印花税/过户费。</p>
+<table><tr><th>#</th><th>时间</th><th>方向</th><th>成交价</th><th>数量（股）</th><th>费用</th></tr>
+{rows}</table>""")
+
     disc = (tpl.get("disclaimer") or "").strip()
     if disc:
         parts.append(f'<div class="disc">{disc}</div>')
@@ -747,13 +812,15 @@ def render_pdf(html: str, out_pdf: Path) -> str:
 def build_and_save(stock_code: str, df: pd.DataFrame, bt: dict | None,
                    sent: dict | None, fmt: str = "html",
                    start: str = "", end: str = "",
-                   tpl: dict | None = None) -> dict:
+                   tpl: dict | None = None,
+                   minute: dict | None = None) -> dict:
     """生成报告并落盘，返回 ``{ok, filename, url, format, engine}``。
 
     这是 API 与流水线共用的唯一入口，保证两条路径产物一致。
+    ``minute`` 透传给 ``build_report_data``，见其 docstring。
     """
     tpl = tpl or load_template()
-    data = build_report_data(stock_code, df, bt, sent, start, end)
+    data = build_report_data(stock_code, df, bt, sent, start, end, minute=minute)
     html = render_html(data, tpl)
     fmt = (fmt or "html").lower()
 

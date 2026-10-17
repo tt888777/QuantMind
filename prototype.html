@@ -743,7 +743,12 @@ body{
             <div class="card" style="margin-bottom:16px">
               <div class="section-title">策略配置 <span class="tag">US-009</span></div>
               <div class="field"><label>策略模板</label>
-                <select class="select" id="stratSel"><option>双均线交叉</option><option>动量策略</option><option>布林带突破</option><option>双均线+情绪过滤</option></select>
+                <select class="select" id="stratSel">
+                  <option value="dual_ma_sentiment" selected>双均线+情绪过滤</option>
+                  <option value="dual_ma">双均线交叉</option>
+                  <option value="momentum">动量策略</option>
+                  <option value="boll">布林带突破</option>
+                </select>
               </div>
               <div class="field"><label>仓位管理</label>
                 <select class="select" id="btPosMode">
@@ -765,7 +770,7 @@ body{
                 <div class="field" style="flex:1;margin:0"><label>滑点(%)</label><input class="input" value="0.02" style="text-align:center"></div>
               </div>
               <div class="field"><label>回测区间</label>
-                <div class="row" style="gap:8px"><input class="input" id="btStartDate" value="2025-09-01"><span style="color:var(--dim)">→</span><input class="input" id="btEndDate" value="2026-09-01"></div>
+                <div class="row" style="gap:8px"><input class="input" id="btStartDate" value="2026-02-04"><span style="color:var(--dim)">→</span><input class="input" id="btEndDate" value="2026-10-09"></div>
               </div>
               <button class="btn btn-primary" style="width:100%;justify-content:center" id="runBacktest">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M5 3l14 9-14 9V3z"/></svg>
@@ -1737,11 +1742,13 @@ if(runBt)runBt.addEventListener('click',async()=>{
     const ed=document.getElementById('btEndDate')?.value||'';
     btParams={short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed};
     const posMode=document.getElementById('btPosMode')?.value||'dynamic';
+    // 🔴 之前 stratSel 只有 HTML、没有任何 JS 读取，所以换策略结果永远不变。
+    const strat=document.getElementById('stratSel')?.value||'dual_ma_sentiment';
     const r=await callAPI('/backtest',{stock_code:sc,short_ma:sh,long_ma:ln,init_capital:cap,start_date:sd,end_date:ed,
-      sentiment_dynamic:posMode==='dynamic'});
+      strategy:strat,sentiment_dynamic:posMode==='dynamic'});
     bar.style.width='100%';
     if(!r.ok){st.textContent=r.msg;logActivity('量化回测','回测失败 '+sc+'：'+r.msg,'fail');return}
-    st.textContent=`回测完成 · 年化 ${r.annual_return}% · 夏普 ${r.sharpe}`
+    st.textContent=`${r.strategy_name||'回测'} MA${r.short}/${r.long} · 年化 ${r.annual_return}% · 夏普 ${r.sharpe} · ${r.trade_count}笔`
       +(r.sentiment_dynamic&&r.target_ratio!=null?` · 舆情目标仓位 ${r.target_ratio}%`:'');
     logActivity('量化回测',`回测 ${sc}(${sd}~${ed})：年化${r.annual_return}% 回撤${r.max_drawdown}% 夏普${r.sharpe} ${r.trade_count}笔`
       +(r.sentiment_dynamic&&r.target_ratio!=null?`，舆情${r.sentiment_index}分→目标仓位${r.target_ratio}%（日均实际${r.avg_exposure_pct}%）`:''),'ok');

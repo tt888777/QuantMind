@@ -31,6 +31,72 @@ def target_position_ratio(sent_index, tiers=None):
     return 0.0
 
 
+# ------------------------------------------------------------------ 策略
+# 🔴 旧实现的问题：run_backtest 虽然接收 short/long_，但信号计算直接读数据库里
+# 预存的 ma5/ma20 两列，参数只用来拼策略名。结果无论传什么参数，回测结果都
+# 一模一样。现在改为**按参数现算**指标，参数才是真的生效。
+STRATEGIES = {
+    "dual_ma": "双均线交叉",
+    "momentum": "动量策略",
+    "boll": "布林带突破",
+    "dual_ma_sentiment": "双均线+情绪过滤",
+}
+
+
+def _signal_dual_ma(df, short, long_):
+    """双均线：短上穿长为买(1)，下穿为卖(-1)。"""
+    ms = df["close"].rolling(short).mean()
+    ml = df["close"].rolling(long_).mean()
+    above = ms > ml
+    sig = pd.Series(0, index=df.index)
+    sig[(~above.shift(1, fill_value=False)) & above] = 1
+    sig[above.shift(1, fill_value=True) & (~above)] = -1
+    return sig
+
+
+def _signal_momentum(df, short, long_):
+    """动量：短周期收益为正且高于长周期均值时持有，转负离场。
+
+    用 close 相对 long_ 日前的变化率衡量动量，过零轴产生信号。
+    """
+    mom = df["close"] / df["close"].shift(long_) - 1
+    sig = pd.Series(0, index=df.index)
+    sig[(mom.shift(1) <= 0) & (mom > 0)] = 1
+    sig[(mom.shift(1) >= 0) & (mom < 0)] = -1
+    return sig
+
+
+def _signal_boll(df, short, long_):
+    """布林带突破：收盘上穿上轨买入，跌破中轨卖出。
+
+    周期取 long_（默认 20），标准差倍数 2。
+    """
+    n = max(long_, 5)
+    mid = df["close"].rolling(n).mean()
+    std = df["close"].rolling(n).std()
+    upper = mid + 2 * std
+    sig = pd.Series(0, index=df.index)
+    close = df["close"]
+    sig[(close.shift(1) <= upper.shift(1)) & (close > upper)] = 1
+    sig[(close.shift(1) >= mid.shift(1)) & (close < mid)] = -1
+    return sig
+
+
+_SIGNAL_FUNCS = {
+    "dual_ma": _signal_dual_ma,
+    "dual_ma_sentiment": _signal_dual_ma,   # 信号同双均线，差别在仓位层
+    "momentum": _signal_momentum,
+    "boll": _signal_boll,
+}
+
+
+def build_signals(df, strategy="dual_ma", short=5, long_=20):
+    """返回与 df 等长的信号序列（1 买 / -1 卖 / 0 无）。"""
+    fn = _SIGNAL_FUNCS.get(strategy) or _signal_dual_ma
+    sig = fn(df, short, long_)
+    return sig.fillna(0).astype(int)
+
+
 def load_data_with_indicator(stock_code):
     from modules.data_fetch import load_quotation
     df = load_quotation(stock_code)
@@ -55,16 +121,18 @@ def load_data_with_indicator(stock_code):
 def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
                  commission=0.0003, slippage=0.0001, lot_size=1,
                  start_date=None, end_date=None, sentiment_threshold=45,
-                 sentiment_dynamic=True):
-    """双均线回测。
+                 sentiment_dynamic=True, strategy="dual_ma"):
+    """多策略回测（双均线 / 动量 / 布林带 / 双均线+情绪过滤）。
 
-    ``sentiment_dynamic=True`` 启用**动态仓位**：金叉不再满仓，而是按舆情情绪指数
-    折算目标仓位（见 ``SENTIMENT_TIERS``）；持仓期间每天校准，情绪转差就逐步减仓，
-    死叉清仓。
-    ``sentiment_dynamic=False`` 为旧的一刀切行为：指数低于阈值则完全拦下，否则满仓。
+    ``strategy`` 见 ``STRATEGIES``；``short`` / ``long_`` 会**真正参与指标计算**
+    （旧版只读数据库里预存的 ma5/ma20，参数形同虚设）。
+
+    ``sentiment_dynamic=True`` 启用**动态仓位**：按舆情情绪指数折算目标仓位
+    （见 ``SENTIMENT_TIERS``），建仓一次定档、死叉清仓。
+    ``sentiment_dynamic=False`` 为旧的一刀切：指数低于阈值则完全拦下，否则满仓。
     """
     df = load_data_with_indicator(stock_code)
-    if df.empty or "ma5" not in df.columns:
+    if df.empty:
         return None
 
     if start_date:
@@ -76,9 +144,12 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
             end_date = pd.to_datetime(end_date).date()
         df = df[df["date"] <= end_date]
 
-    df = df.dropna(subset=["ma5", "ma20"]).reset_index(drop=True)
+    df = df.reset_index(drop=True)
+    # 均线需要 long_ 个前置数据点才算得出来；预留 long_*2 便于布林带标准差收敛
     if len(df) < long_ + 5:
         return None
+
+    signals = build_signals(df, strategy=strategy, short=short, long_=long_)
 
     sent_index = None
     if sentiment_threshold is not None:
@@ -97,31 +168,31 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
     exposure_series = []            # 每日仓位占比（持仓市值 / 总权益）
     entry_price = 0.0
     blocked_by_sentiment = 0        # 因舆情目标仓位为 0 而放弃建仓的次数
-    total_buy_signals = 0           # 金叉信号总数
+    total_buy_signals = 0           # 买入信号总数
 
-    target_ratio = target_position_ratio(sent_index) if sentiment_dynamic else 1.0
+    # 策略是否启用舆情：显式策略 dual_ma_sentiment 强制启用；
+    # 其它策略是否用舆情由 sentiment_dynamic 决定。
+    # 这样"双均线交叉"（纯技术）与"双均线+情绪过滤"能拉开差异，而不是同一结果。
+    if strategy == "dual_ma_sentiment":
+        use_sentiment = True
+    elif strategy in ("dual_ma", "momentum", "boll"):
+        use_sentiment = sentiment_dynamic
+    else:
+        use_sentiment = sentiment_dynamic
+
+    target_ratio = target_position_ratio(sent_index) if use_sentiment else 1.0
 
     for i in range(1, len(df)):
         row = df.iloc[i]
-        prev = df.iloc[i - 1]
         price = float(row["close"])
-        ma_s = float(row["ma5"])
-        ma_l = float(row["ma20"])
-        prev_ma_s = float(prev["ma5"])
-        prev_ma_l = float(prev["ma20"])
-
-        signal = 0
-        if prev_ma_s <= prev_ma_l and ma_s > ma_l:
-            signal = 1
-        elif prev_ma_s >= prev_ma_l and ma_s < ma_l:
-            signal = -1
+        signal = int(signals.iloc[i])
 
         buy_price = price * (1 + slippage)
 
         if signal == 1:
             total_buy_signals += 1
 
-            if sentiment_dynamic:
+            if use_sentiment:
                 # 动态仓位：目标档位为 0 视为"不建仓"，否则按比例建仓
                 ratio = target_ratio
             else:
@@ -202,8 +273,10 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
 
     s = get_session()
     try:
-        strat = Strategy(strategy_name=f"双均线{short}/{long_}", strategy_type="DUAL_MA",
-                         stock_code=stock_code, params=f'{{"short":{short},"long":{long_}}}',
+        strat = Strategy(strategy_name=f"{STRATEGIES.get(strategy, strategy)}{short}/{long_}",
+                         strategy_type=strategy.upper()[:24],
+                         stock_code=stock_code,
+                         params=f'{{"strategy":"{strategy}","short":{short},"long":{long_}}}',
                          init_capital=Decimal(str(init_capital)))
         s.add(strat)
         s.flush()
@@ -235,6 +308,9 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         # 建仓到清仓的完整周期数 —— 动态仓位下 trade_count 会因减仓而变大，
         # 真正衡量"做了几轮交易"的是这个。
         "round_trips": trade_pairs,
+        "strategy": strategy,
+        "strategy_name": STRATEGIES.get(strategy, strategy),
+        "short": short, "long": long_,
         "final_equity": round(final_equity, 2),
         "trades": trades,
         "equity_curve": equity_curve,
@@ -246,9 +322,9 @@ def run_backtest(stock_code, short=5, long_=20, init_capital=100000.0,
         "sentiment_blocked": blocked_by_sentiment,
         "buy_signals": total_buy_signals,
         # ---- 动态仓位相关 ----
-        "sentiment_dynamic": bool(sentiment_dynamic and sent_index is not None),
+        "sentiment_dynamic": bool(use_sentiment and sent_index is not None),
         "target_ratio": (round(target_ratio * 100, 1)
-                         if sentiment_dynamic and sent_index is not None else None),
+                         if use_sentiment and sent_index is not None else None),
         # 实际仓位暴露：持仓市值 / 总权益的日均值，比"持仓天数占比"更接近真实风险暴露
         "avg_exposure_pct": avg_exposure_pct,
     }

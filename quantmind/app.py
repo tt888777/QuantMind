@@ -190,9 +190,10 @@ def api_backtest():
     # sentiment_dynamic 默认开启；传 false 可回到旧的「一刀切满仓」行为做对比
     dyn = d.get('sentiment_dynamic')
     dyn = True if dyn is None else bool(dyn)
+    strat = str(d.get('strategy') or 'dual_ma')
     bt = run_backtest(sc, short=short, long_=long_, init_capital=cap,
                       start_date=sd if sd else None, end_date=ed if ed else None,
-                      sentiment_dynamic=dyn)
+                      sentiment_dynamic=dyn, strategy=strat)
     if not bt:
         return jsonify({'ok': False, 'msg': '回测失败：数据不足，请先生成数据'})
     trades = []
@@ -209,6 +210,9 @@ def api_backtest():
         'sharpe': bt['sharpe'],
         'trade_count': bt['trade_count'],
         'round_trips': bt.get('round_trips'),
+        'strategy': bt.get('strategy'),
+        'strategy_name': bt.get('strategy_name'),
+        'short': bt.get('short'), 'long': bt.get('long'),
         'sentiment_dynamic': bt.get('sentiment_dynamic'),
         'sentiment_index': bt.get('sentiment_index'),
         'target_ratio': bt.get('target_ratio'),

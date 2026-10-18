@@ -464,6 +464,8 @@ DAPT 底座由 `BertForMaskedLM` 保存，**不含 `bert.pooler`**；而
 | GET      | `/api/minute/quotation/<code>`              | 分钟 K 线数据（`?period=30&limit=500`）                                 |                    |
 | POST     | `/api/minute/collect`                       | 采集分钟行情（新浪主源 / 腾讯备源，幂等增量）                                         |                    |
 | GET      | `/api/minute/logs`                          | 最近分钟采集日志（成功/失败与原因）                                               |                    |
+| GET      | `/api/activity`                             | 最近活动（主页「最近活动」数据源，读数据库，`?limit=20&days=30`）                       |                    |
+| POST     | `/api/activity`                             | 上报一条前端操作到活动日志                                                     |                    |
 | POST     | `/api/pipeline`                             | 一键流水线（fetch → clean → indicator → backtest → sentiment → report） |                    |
 | GET      | `/api/quotation/<code>`                     | 日线数据                                                             |                    |
 | GET      | `/api/stocks`                               | 已接入标的列表                                                          |                    |

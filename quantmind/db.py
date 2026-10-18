@@ -94,6 +94,28 @@ class MinuteCollectLog(Base):
     created_at = Column(DateTime, default=datetime.now)
 
 
+class ActivityLog(Base):
+    """全站操作活动日志（主页「最近活动」的数据源）。
+
+    为什么存数据库而不是 localStorage：
+    - 以前存在浏览器 localStorage 里，只保留 1 小时，刷新/换浏览器就没了，
+      演示时经常出现「刚跑完回测，主页空白」；
+    - 分钟回测是纯后端计算，前端不写日志就完全没有记录；
+    - 落库后可以按模块回溯，也能解释「这条数据是怎么来的」。
+
+    写入频率低（一次操作一条），只在 created_at 上建索引。
+    """
+    __tablename__ = "activity_log"
+    __table_args__ = (Index("ix_activity_created", "created_at"),)
+    id = Column(PK_TYPE, primary_key=True, autoincrement=True)
+    module = Column(String(32), nullable=False)      # 量化回测 / 分钟回测 / 数据导入 ...
+    event = Column(String(500), nullable=False)      # 一句话描述
+    status = Column(String(16), default="ok")        # ok / fail / info
+    stock_code = Column(String(16))
+    user_id = Column(BigInteger)
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class TechnicalIndicator(Base):
     __tablename__ = "technical_indicator"
     id = Column(PK_TYPE, primary_key=True, autoincrement=True)

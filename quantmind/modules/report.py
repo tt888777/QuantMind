@@ -666,6 +666,19 @@ ul.risk li {{ margin-bottom:5px; }}
         def _fee(t):
             # 日线回测的旧口径没有单笔费用字段，如实显示「—」而不是伪造 0
             return _fmt(t.get("fee"), " 元") if t.get("fee") is not None else "—"
+
+        def _pnl(t):
+            # 分钟回测会配对买卖算单笔盈亏（已扣双边费用与滑点）；
+            # 日线旧口径没有，显示「—」而不是 0，避免误读成「打了平手」。
+            v = t.get("pnl")
+            if v is None:
+                return "—"
+            tail = ""
+            pct = t.get("pnl_pct")
+            if isinstance(pct, (int, float)):
+                tail = f"（{pct:+.2f}%）"
+            return f'<span style="color:{up if v > 0 else down}">{v:,.2f}{tail}</span>'
+
         rows = "".join(
             f"<tr><td class=\"num\">{i + 1 + skipped}</td>"
             f"<td>{_t(t)}</td>"
@@ -673,12 +686,13 @@ ul.risk li {{ margin-bottom:5px; }}
             f"{'买入' if t.get('dir') == 'BUY' else '卖出'}</td>"
             f"<td class=\"num\">{_fmt(t.get('price'))}</td>"
             f"<td class=\"num\">{_fmt(t.get('shares'), '', 0)}</td>"
-            f"<td class=\"num\">{_fee(t)}</td></tr>"
+            f"<td class=\"num\">{_fee(t)}</td>"
+            f"<td class=\"num\">{_pnl(t)}</td></tr>"
             for i, t in enumerate(show))
         note = f"（仅展示最近 40 笔，完整 {len(trades)} 笔见系统导出）" if skipped else ""
         parts.append(f"""<h2>{'⑦' if minute else '⑥'} 逐笔交易明细</h2>
-<p>回测共产生 <b>{len(trades)}</b> 笔交易{note}。价格为含滑点的成交价，费用含佣金/印花税/过户费。</p>
-<table><tr><th>#</th><th>时间</th><th>方向</th><th>成交价</th><th>数量（股）</th><th>费用</th></tr>
+<p>回测共产生 <b>{len(trades)}</b> 笔交易{note}。价格为含滑点的成交价，费用含佣金/印花税/过户费；盈亏为卖出净额减去买入总成本。</p>
+<table><tr><th>#</th><th>时间</th><th>方向</th><th>成交价</th><th>数量（股）</th><th>费用</th><th>盈亏</th></tr>
 {rows}</table>""")
 
     disc = (tpl.get("disclaimer") or "").strip()

@@ -73,6 +73,8 @@ def run_minute_backtest(stock_code, period=30, strategy="dual_ma", short=5, long
 
     cash = float(init_capital)
     position = 0
+    entry = None                   # 当前持仓对应的买入记录，用于配对单笔盈亏
+    entry_bar = 0
     trades = []
     equity_curve = []
     fees_total = 0.0
@@ -107,9 +109,12 @@ def run_minute_backtest(stock_code, period=30, strategy="dual_ma", short=5, long
                     cash -= amount + fee
                     fees_total += fee
                     position = shares
-                    trades.append({"time": tt, "dir": "BUY",
-                                   "price": round(buy_price, 3),
-                                   "shares": shares, "fee": round(fee, 2)})
+                    rec = {"time": str(tt)[:19], "dir": "BUY",
+                           "price": round(buy_price, 3),
+                           "shares": shares, "fee": round(fee, 2),
+                           "amount": round(amount, 2)}
+                    trades.append(rec)
+                    entry, entry_bar = rec, i
                 else:
                     # 含费后现金不够（临界情况），同样按"买不起"处理
                     skipped_no_capital += 1
@@ -123,10 +128,22 @@ def run_minute_backtest(stock_code, period=30, strategy="dual_ma", short=5, long
             fee = comm + amount * STAMP_TAX + amount * TRANSFER_FEE
             cash += amount - fee
             fees_total += fee
-            trades.append({"time": tt, "dir": "SELL", "price": round(sell_price, 3),
-                           "shares": position, "fee": round(fee, 2),
-                           "close_cycle": True})
+            rec = {"time": str(tt)[:19], "dir": "SELL", "price": round(sell_price, 3),
+                   "shares": position, "fee": round(fee, 2),
+                   "amount": round(amount, 2), "close_cycle": True}
+            if entry:
+                # 单笔盈亏 = 卖出净额 - 买入总成本（含双边费用），才是真正落袋的钱。
+                # 只算价差会把费用漏掉，分钟线上费用恰恰是决定性因素。
+                cost = entry["price"] * entry["shares"] + entry["fee"]
+                pnl = (amount - fee) - cost
+                rec.update({"pnl": round(pnl, 2),
+                            "pnl_pct": round(pnl / cost * 100, 2) if cost else 0.0,
+                            "hold_bars": i - entry_bar,
+                            "entry_time": str(entry["time"])[:19],
+                            "entry_price": entry["price"]})
+            trades.append(rec)
             position = 0
+            entry = None
 
         equity_curve.append({"time": tt, "equity": cash + position * price})
 
@@ -191,6 +208,10 @@ def run_minute_backtest(stock_code, period=30, strategy="dual_ma", short=5, long
         "avg_trades_per_day": round(len(cycles) / days, 2) if days else 0,
         "start_time": str(df["time"].iloc[0]),
         "end_time": str(df["time"].iloc[-1]),
+        # 期末仍持仓时明细里没有对应卖出，单独标出来，避免"买入多于卖出"被当成漏记
+        "open_position": ({"shares": position, "entry_time": str(entry["time"])[:19],
+                           "entry_price": entry["price"]}
+                          if position > 0 and entry else None),
         "trades": trades,
         "equity_curve": equity_curve,
     }

@@ -950,6 +950,22 @@ body{
           </div>
         </div>
 
+        <!-- 逐笔交易明细：与日线回测页保持同一套口径（时间/方向/价格/数量/费用），
+             分钟线额外有「费用」和「盈亏」，因为分钟策略的成败就看这两列。 -->
+        <div class="card" style="margin-top:16px">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div class="section-title" style="margin:0">逐笔交易明细 <span class="tag" id="mTradeTag">最佳策略</span></div>
+            <div style="font-size:11px;color:var(--dim)">最新在前 · 盈亏已扣双边费用与滑点</div>
+          </div>
+          <div class="tbl-wrap" style="max-height:300px">
+            <table class="tbl">
+              <thead><tr><th>#</th><th>时间</th><th>方向</th><th>价格</th><th>数量</th><th>成交额</th><th>费用</th><th>盈亏</th></tr></thead>
+              <tbody id="mTradeBody"><tr><td colspan="8" style="text-align:center;color:var(--dim);padding:14px">点击「开始回测」查看逐笔成交</td></tr></tbody>
+            </table>
+          </div>
+          <div id="mTradeNote" style="margin-top:8px;font-size:11px;color:var(--dim)"></div>
+        </div>
+
         <!-- 多标的横评 -->
         <div class="card" style="margin-top:16px">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -1622,10 +1638,26 @@ async function loadDashboard(){
       const si=document.getElementById('dashStockInfo');
       if(si)si.textContent=sr.stocks.map(s=>s.code).join(' · ');
       const total=sr.stocks.reduce((a,s)=>a+s.count,0);
+      // 分钟数据单独一张表，必须单独统计 —— 否则「数据记录总数」永远只有日线，
+      // 看起来就像分钟数据没入库。
+      let mTotal=0,m30=0,m5=0,mCount=0;
+      try{
+        const mr=await fetch(API+'/minute/stocks').then(r=>r.json());
+        if(mr&&mr.ok&&mr.stocks){
+          mCount=mr.stocks.length;
+          mr.stocks.forEach(s=>{
+            const p=s.periods||{};
+            const r30=(p['30']||p[30]||{}).rows||0;
+            const r5=(p['5']||p[5]||{}).rows||0;
+            m30+=r30;m5+=r5;mTotal+=r30+r5;
+          });
+        }
+      }catch(e){}
       const dc=document.getElementById('dashDataCount');
-      if(dc)dc.innerHTML=total.toLocaleString()+'<span class="u">条</span>';
+      if(dc)dc.innerHTML=(total+mTotal).toLocaleString()+'<span class="u">条</span>';
       const di=document.getElementById('dashDataInfo');
-      if(di)di.textContent=sr.stocks.map(s=>`${s.code}: ${s.count}条`).join(' · ');
+      if(di)di.textContent=`日线 ${total.toLocaleString()} 条 · 分钟 ${mTotal.toLocaleString()} 条`
+        +(mCount?`（${mCount} 只：30m ${m30.toLocaleString()} / 5m ${m5.toLocaleString()}）`:'');
       if(sr.stocks.length>0){
         currentStock=sr.stocks[0].code;
         if(stockSel)stockSel.value=currentStock;
@@ -1659,35 +1691,53 @@ const API='/api';
 let currentStock='600519';
 let btParams={short_ma:5,long_ma:20,init_capital:100000,start_date:'',end_date:''};
 
-/* --- 全局操作日志系统 --- */
+/* --- 全局操作日志系统 ---
+   双层存储：localStorage 负责“立刻可见”（接口挂了也不至于空白），
+   数据库负责“活得久”（刷新 / 换浏览器 / 重启服务后仍在）。
+   之前只存 localStorage 且只保留 1 小时，演示时常常刚跑完回测主页就是空的。 */
 const ACTIVITY_LOG_KEY='quantmind_activity_log';
+const ACTIVITY_TTL=7*24*3600*1000;          // 本地兜底缓存保留 7 天
 function getActivityLog(){
   try{return JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY)||'[]')}catch(e){return []}
 }
 function saveActivityLog(log){
   const now=Date.now();
-  const filtered=log.filter(e=>now-(e.ts||0)<3600000);
+  const filtered=log.filter(e=>now-(e.ts||0)<ACTIVITY_TTL).slice(0,200);
   try{localStorage.setItem(ACTIVITY_LOG_KEY,JSON.stringify(filtered))}catch(e){}
 }
 function logActivity(module,event,status){
   const now=Date.now();
   const entry={time:new Date().toLocaleTimeString('zh-CN',{hour12:false}),date:new Date().toISOString().slice(0,10),module,event,status,ts:now};
-  const log=getActivityLog().filter(e=>now-(e.ts||0)<3600000);
+  const log=getActivityLog().filter(e=>now-(e.ts||0)<ACTIVITY_TTL);
   log.unshift(entry);
   saveActivityLog(log);
   refreshActivityTable();
+  // 同步落库（异步、失败静默）：后端接口自己也会记，这里补前端独有的操作
+  try{
+    fetch(API+'/activity',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({module,event,status})})
+      .then(r=>r.json()).then(j=>{if(j&&j.ok)refreshActivityTable()})
+      .catch(()=>{});
+  }catch(e){}
   return entry;
 }
-function refreshActivityTable(){
+async function refreshActivityTable(){
   const tb=document.getElementById('dashActivityTable');if(!tb)return;
-  const log=getActivityLog();
+  let log=null;
+  try{
+    const r=await fetch(API+'/activity?limit=20&days=30').then(x=>x.json());
+    if(r&&r.ok&&Array.isArray(r.logs))log=r.logs;
+  }catch(e){}
+  if(!log)log=getActivityLog();            // 后端不可用时退回本地缓存
   if(!log.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">暂无活动记录</td></tr>';return}
   tb.innerHTML='';
   log.slice(0,20).forEach(a=>{
     const badge=a.status==='ok'?'b-green':a.status==='fail'?'b-red':a.status==='info'?'b-indigo':'b-gray';
     const statusText=a.status==='ok'?'完成':a.status==='fail'?'失败':a.status==='info'?'信息':'待定';
+    // 跨天也能看出是哪天，只显示 HH:MM:SS 会让人分不清
+    const when=a.date?(a.date.slice(5)+' '+a.time):(a.time||'');
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="mono">${a.time}</td><td>${a.module}</td><td>${a.event}</td><td><span class="badge ${badge}">${statusText}</span></td>`;
+    tr.innerHTML=`<td class="mono">${when}</td><td>${a.module||''}</td><td>${a.event||''}</td><td><span class="badge ${badge}">${statusText}</span></td>`;
     tb.appendChild(tr);
   });
 }
@@ -3194,6 +3244,52 @@ function minuteRenderResult(r){
         areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
           {offset:0,color:isUp?'rgba(239,68,68,.22)':'rgba(34,197,94,.22)'},
           {offset:1,color:'transparent'}])}}]});
+  }
+
+  minuteRenderTrades(r, best);
+}
+
+/* 逐笔交易明细：口径与日线回测页一致（时间/方向/价格/数量），
+   分钟线额外给成交额、费用和单笔盈亏 —— 费用在这两列里是决定性因素。 */
+function minuteRenderTrades(r, best){
+  const tb=document.getElementById('mTradeBody');
+  const note=document.getElementById('mTradeNote');
+  const tag=document.getElementById('mTradeTag');
+  const all=r.trades||[];
+  if(tag&&best)tag.textContent=`${best.strategy_name} ${best.short}/${best.long}`;
+  if(tb){
+    if(!all.length){
+      tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:14px">本次回测无成交（资金不足或信号未触发）</td></tr>';
+    }else{
+      tb.innerHTML=all.slice().reverse().map((t,i)=>{      // 最新在前，跟日线页一致
+        const idx=all.length-i;
+        const buy=t.dir==='BUY';
+        const pnl=(t.pnl===null||t.pnl===undefined)
+          ? '<span style="color:var(--dim)">—</span>'
+          : `<span class="mono" style="color:${mColorOf(t.pnl)}">${t.pnl>0?'+':''}${mfmtNum(t.pnl,2)}</span>`
+            +`<span style="font-size:10.5px;color:var(--dim)"> (${mPct(t.pnl_pct)})</span>`;
+        return `<tr>
+          <td class="mono">${idx}</td>
+          <td class="mono" style="font-size:11.5px">${t.time||''}</td>
+          <td><span class="badge ${buy?'b-green':'b-red'}">${buy?'买入':'卖出'}</span></td>
+          <td class="mono">${t.price}</td>
+          <td class="mono">${mfmtNum(t.shares)}</td>
+          <td class="mono" style="color:var(--muted)">${mfmtNum(t.amount,0)}</td>
+          <td class="mono" style="color:#F59E0B">${mfmtNum(t.fee,2)}</td>
+          <td>${pnl}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+  if(note){
+    const total=r.trade_total||all.length;
+    let s=`共 ${total} 笔成交`;
+    if(total>all.length)s+=`，此处显示最近 ${all.length} 笔`;
+    if(r.open_position){
+      s+=` · 期末仍持仓 ${mfmtNum(r.open_position.shares)} 股`
+        +`（${r.open_position.entry_time} 买入，明细中暂无对应卖出）`;
+    }
+    note.textContent=s;
   }
 }
 

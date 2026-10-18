@@ -12,6 +12,7 @@ from modules.sentiment import collect_sentiment, analyze_sentiments, classify_ti
 from modules.sentiment_model import get_backend as get_sentiment_backend
 from modules.auth import init_auth, current_user, admin_required
 from modules import report as report_mod
+from modules import activity as activity_mod
 from db import get_session, TechnicalIndicator, QuotationDaily, StockBasic
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), '..'))
@@ -22,6 +23,17 @@ init_auth(app)
 HTML_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 EXPORT_DIR = os.path.join(HTML_DIR, 'exports')
 os.makedirs(EXPORT_DIR, exist_ok=True)
+
+
+def _act(module, event, status='ok', stock_code=None):
+    """记录一条活动（带当前用户），失败静默 —— 日志不能影响主流程。"""
+    try:
+        u = current_user()
+        activity_mod.log(module, event, status=status, stock_code=stock_code,
+                         user_id=(u or {}).get('id'))
+    except Exception:
+        pass
+
 
 def query_stock_name(sc):
     try:
@@ -199,8 +211,14 @@ def api_backtest():
     trades = []
     for t in reversed(bt.get('trades', [])):
         trades.append({'date': str(t['date']), 'dir': t['dir'],
-                        'price': t['price'], 'shares': t['shares']})
+                        'price': t['price'], 'shares': t['shares'],
+                        'fee': t.get('fee'), 'pnl': t.get('pnl')})
     equity = [e['equity'] for e in bt.get('equity_curve', [])]
+    _act('量化回测',
+         f"日线回测 {sc} {bt.get('strategy_name') or strat} {short}/{long_}："
+         f"年化{bt['annual_return']}% 回撤{bt['max_drawdown']}% "
+         f"夏普{bt['sharpe']} {bt['trade_count']}笔",
+         'ok', stock_code=sc)
     return jsonify({
         'ok': True,
         'total_return': bt['total_return'],
@@ -324,6 +342,10 @@ def api_minute_collect():
                 total_added += res['added']
             results.append(res)
     ok = sum(1 for r in results if r['ok'])
+    _act('分钟采集',
+         f"采集 {len(codes)} 只 × {'/'.join(f'{p}m' for p in periods)}："
+         f"成功 {ok}/{len(results)}，新增 {total_added} 行",
+         'ok' if ok else 'fail')
     return jsonify({'ok': True, 'total': len(results), 'success': ok,
                     'failed': len(results) - ok, 'added': total_added,
                     'results': results,
@@ -336,6 +358,35 @@ def api_minute_logs():
     from modules.minute_fetch import recent_logs
     limit = int(request.args.get('limit', 20))
     return jsonify({'ok': True, 'logs': recent_logs(limit)})
+
+
+@app.route('/api/activity')
+def api_activity():
+    """主页「最近活动」数据源：读数据库而不是浏览器 localStorage，
+    这样刷新页面、换浏览器、重启服务后记录都还在。"""
+    try:
+        limit = min(int(request.args.get('limit', 20)), 200)
+        days = max(int(request.args.get('days', 30)), 1)
+    except (TypeError, ValueError):
+        limit, days = 20, 30
+    module = request.args.get('module') or None
+    return jsonify({'ok': True,
+                    'logs': activity_mod.recent(limit, module=module, days=days),
+                    'summary': activity_mod.summary(days=days)})
+
+
+@app.route('/api/activity', methods=['POST'])
+def api_activity_add():
+    """前端上报活动（只在浏览器侧发生的操作，如切换分析引擎、保存模板）。"""
+    d = request.json or {}
+    event = str(d.get('event') or '').strip()
+    if not event:
+        return jsonify({'ok': False, 'msg': 'event 不能为空'})
+    ok = activity_mod.log(str(d.get('module') or '前端'), event,
+                          status=d.get('status') or 'ok',
+                          stock_code=d.get('stock_code'),
+                          user_id=(current_user() or {}).get('id'))
+    return jsonify({'ok': ok})
 
 
 @app.route('/api/minute/backtest', methods=['POST'])
@@ -371,6 +422,13 @@ def api_minute_backtest():
         'min_commission_hits', 'skipped_no_capital', 'avg_trades_per_day')} for r in rows]
 
     best = max(rows, key=lambda r: r['total_return'])
+    best_name = names.get(sc, sc)
+    _act('分钟回测',
+         f"{period}m 回测 {sc}({best_name}) 最佳 {best['strategy_name']} "
+         f"{best['short']}/{best['long']}：实际{best['total_return']}% "
+         f"未扣费{best['return_before_fee']}% 损耗{best['fee_drag']}pt "
+         f"{best['round_trips']}轮 {best['trade_count']}笔",
+         'ok', stock_code=sc)
     return jsonify({
         'ok': True,
         'stock_code': sc,
@@ -387,6 +445,8 @@ def api_minute_backtest():
         'equity_curve': [{'time': str(e['time'])[:19], 'equity': round(e['equity'], 2)}
                          for e in best['equity_curve']],
         'trades': best['trades'][-80:],
+        'trade_total': len(best['trades']),
+        'open_position': best.get('open_position'),
         'msg': f"{best['strategy_name']} {best['short']}/{best['long']} 最佳："
                f"实际{best['total_return']}% 年化{best['annual_return']}%",
     })
@@ -464,15 +524,19 @@ def api_minute_matrix():
                        'positive': v['pos']}
                       for k, v in sorted(agg.items(), key=lambda kv: -kv[1]['ret'] / kv[1]['n'])]
 
+    pos_after = sum(1 for r in rows if r['total_return'] > 0)
+    _act('分钟横评',
+         f"{period}m × {len(codes)} 只 × {len(combos)} 策略：{len(rows)} 组合，"
+         f"扣费后正收益 {pos_after}/{len(rows)}",
+         'ok')
     return jsonify({
         'ok': True, 'period': period, 'init_capital': cap, 'lot_size': lot,
         'total_combos': len(rows),
         'positive_before': sum(1 for r in rows if r['return_before_fee'] > 0),
-        'positive_after': sum(1 for r in rows if r['total_return'] > 0),
+        'positive_after': pos_after,
         'stock_board': stock_board,
         'strategy_board': strategy_board,
-        'msg': f'{len(rows)} 个组合，扣费后正收益 '
-               f'{sum(1 for r in rows if r["total_return"] > 0)}/{len(rows)}',
+        'msg': f'{len(rows)} 个组合，扣费后正收益 {pos_after}/{len(rows)}',
     })
 
 
@@ -965,10 +1029,17 @@ def api_export_report():
         r = report_mod.build_and_save(sc, df, bt, sent, fmt=fmt, start=sd, end=ed,
                                       minute=minute_res)
     except report_mod.PdfUnavailable as e:
+        _act('报告中心', f"导出 {fmt.upper()} 报告 {sc} 失败：PDF 引擎不可用", 'fail', stock_code=sc)
         return jsonify({'ok': False, 'code': 'PDF_UNAVAILABLE',
                         'msg': 'PDF 引擎不可用，请改用 HTML 导出',
                         'detail': str(e)}), 500
 
+    _act('报告中心',
+         f"导出 {fmt.upper()} 报告 {sc}"
+         + (f"（{minute_kw['period']} 分钟线，最佳 {minute_res['best']['strategy_name']}）"
+            if minute_kw else "（日线）")
+         + f"：{r['filename']}",
+         'ok', stock_code=sc)
     return jsonify({
         'ok': True,
         'msg': 'PDF 报告已生成' if fmt == 'pdf' else 'HTML 报告已生成',
